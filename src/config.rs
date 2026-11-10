@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 const CONFIG_FILENAME: &str = concat!(env!("CARGO_PKG_NAME"), "-conf.json");
 
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Config {
     main_machine: String,
     connected_machines: Vec<String>,
@@ -13,6 +13,12 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn new(main_machine: String) -> Self {
+        Self {
+            main_machine,
+            ..Default::default()
+        }
+    }
     pub fn load() -> Result<Self> {
         let path = get_path()?;
         let bytes = std::fs::read(path)?;

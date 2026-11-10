@@ -14,4 +14,5 @@ pub enum Command {
     Push,
     Pull { machine: String },
     Sync { path: PathBuf },
+    InitConfig { main_machine: String },
 }
