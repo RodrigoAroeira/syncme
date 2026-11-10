@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -11,4 +13,5 @@ pub struct Args {
 pub enum Command {
     Push,
     Pull { machine: String },
+    Sync { path: PathBuf },
 }
