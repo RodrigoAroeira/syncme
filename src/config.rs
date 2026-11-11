@@ -82,6 +82,22 @@ impl Config {
             .map(|idx| _ = self.paths.remove(idx))
             .with_context(|| format!("Path '{}' is not being tracked", path.display()))
     }
+
+    pub fn add_machine(&mut self, name: String) {
+        let name = name.trim().to_string();
+        if !self.connected_machines.contains(&name) {
+            self.connected_machines.push(name);
+        }
+    }
+
+    pub fn rm_machine(&mut self, name: &str) -> Result<()> {
+        let name = name.trim();
+        self.connected_machines
+            .iter()
+            .position(|m| m == name)
+            .map(|idx| _ = self.connected_machines.remove(idx))
+            .with_context(|| format!("Machine '{}' is not in the list", name))
+    }
 }
 
 fn get_path() -> Result<PathBuf> {
@@ -128,5 +144,23 @@ mod tests {
         assert!(config.untrack_path(path).is_ok());
         assert_eq!(config.paths().len(), 0);
         assert!(config.untrack_path(path).is_err());
+    }
+
+    #[test]
+    fn add_machine() {
+        let mut config = Config::new("primary_node".to_string());
+        let name = "machine".to_string();
+        config.add_machine(name.clone());
+        assert!(config.machines().contains(&name));
+        config.add_machine(name);
+        assert_eq!(config.machines().len(), 1);
+    }
+
+    #[test]
+    fn rm_machine() {
+        let mut config = Config::new("primary_node".to_string());
+        let name = "machine".to_string();
+        config.add_machine(name.clone());
+        assert!(config.rm_machine(&name).is_ok());
     }
 }

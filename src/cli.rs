@@ -12,10 +12,35 @@ pub struct Args {
 #[derive(Subcommand)]
 pub enum Command {
     Push,
-    Pull { machine: String },
-    Track { path: PathBuf },
-    Untrack { path: PathBuf },
-    InitConfig { main_machine: String },
+    Pull {
+        machine: String,
+    },
+    Track {
+        path: PathBuf,
+    },
+    Untrack {
+        path: PathBuf,
+    },
+    InitConfig {
+        main_machine: String,
+    },
+    Machine {
+        #[command(subcommand)]
+        cmd: MachineCmd,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum MachineCmd {
+    Add {
+        name: String,
+    },
+    #[command(alias = "rm")]
+    Remove {
+        name: String,
+    },
+    #[command(alias = "ls")]
+    List,
 }
 
 #[cfg(test)]

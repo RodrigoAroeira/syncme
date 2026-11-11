@@ -12,6 +12,8 @@ use config::Config;
 
 fn main() -> Result<()> {
     use cli::Command as Cmd;
+    use cli::MachineCmd as MCmd;
+
     let home = dirs::home_dir().context("Unable to get home dir")?;
     let args = cli::Args::parse();
     match args.cmd {
@@ -49,6 +51,18 @@ fn main() -> Result<()> {
         Cmd::InitConfig { main_machine } => {
             ensure!(Config::load().is_err(), "config already exists");
             Config::new(main_machine).save()?;
+        }
+        Cmd::Machine { cmd } => {
+            let mut conf = Config::load()?;
+            match cmd {
+                MCmd::Add { name } => conf.add_machine(name),
+                MCmd::Remove { name } => conf.rm_machine(&name)?,
+                MCmd::List => {
+                    for m in conf.machines() {
+                        println!("- {m}");
+                    }
+                }
+            }
         }
     }
     Ok(())
