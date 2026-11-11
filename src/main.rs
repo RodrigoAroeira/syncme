@@ -20,7 +20,7 @@ fn main() -> Result<()> {
             for file in conf.paths() {
                 let path_str = file.to_str().context("invalid UTF-8 path")?;
 
-                let remote_rel = file.strip_prefix(&home).unwrap_or(file);
+                let remote_rel = sync::remote_path(file, &home);
                 let remote_path = remote_rel.to_str().context("invalid UTF-8 path")?;
                 if conf.this() == conf.main() {
                     // Send to other machines

@@ -16,3 +16,14 @@ pub enum Command {
     Sync { path: PathBuf },
     InitConfig { main_machine: String },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        Args::command().debug_assert();
+    }
+}
