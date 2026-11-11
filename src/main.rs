@@ -40,6 +40,12 @@ fn main() -> Result<()> {
             conf.add_path(path);
             conf.save()?;
         }
+        Cmd::Untrack { path } => {
+            let path = path.absolutize()?;
+            let mut conf = Config::load()?;
+            conf.untrack_path(path)?;
+            conf.save()?;
+        }
         Cmd::InitConfig { main_machine } => {
             ensure!(Config::load().is_err(), "config already exists");
             Config::new(main_machine).save()?;

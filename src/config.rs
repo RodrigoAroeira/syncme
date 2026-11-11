@@ -73,6 +73,15 @@ impl Config {
             self.paths.push(path)
         }
     }
+
+    pub fn untrack_path<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
+        let path = path.as_ref();
+        self.paths
+            .iter()
+            .position(|p| p == path)
+            .map(|idx| _ = self.paths.remove(idx))
+            .with_context(|| format!("Path '{}' is not being tracked", path.display()))
+    }
 }
 
 fn get_path() -> Result<PathBuf> {
@@ -109,5 +118,15 @@ mod tests {
 
         assert_eq!(config.paths().len(), 1);
         assert_eq!(config.paths()[0], Path::new("/home/user/.bashrc"));
+    }
+
+    #[test]
+    fn untrack_path() {
+        let mut config = Config::new("primary_node".to_string());
+        let path = "/home/user/.bashrc";
+        config.add_path(path);
+        assert!(config.untrack_path(path).is_ok());
+        assert_eq!(config.paths().len(), 0);
+        assert!(config.untrack_path(path).is_err());
     }
 }

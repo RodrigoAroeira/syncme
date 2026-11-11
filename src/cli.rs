@@ -14,6 +14,7 @@ pub enum Command {
     Push,
     Pull { machine: String },
     Track { path: PathBuf },
+    Untrack { path: PathBuf },
     InitConfig { main_machine: String },
 }
 
