@@ -1,0 +1,18 @@
+TODO: Pull command
+TODO: dry-run flags
+TODO: Unsync command
+TODO: refactor this_machine entry
+TODO: fix init config is_err => could be missing or malformed.Maybe go forward if file exists
+TODO: write tests to make sure program will always work as expected. Mock rsync machines, etc
+TODO: Make crossplatform
+TODO: Introduce supervisor daemon
+TODO: Introduce custom errors instead of using anyhow
+TODO: Write doc comments
+TODO: Write commands for machine management
+TODO: Maybe rename Sync command to track
+TODO: Add list command
+TODO: Add ignore patterns in cli and config
+TODO: Introduce data protection logic
+TODO: Handle unreachable machines
+TODO: Add --detach cli flag
+TODO: Add auto sync
