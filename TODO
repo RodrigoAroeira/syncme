@@ -9,10 +9,10 @@ TODO: Introduce supervisor daemon
 TODO: Introduce custom errors instead of using anyhow
 TODO: Write doc comments
 TODO: Write commands for machine management
-TODO: Maybe rename Sync command to track
 TODO: Add list command
 TODO: Add ignore patterns in cli and config
 TODO: Introduce data protection logic
 TODO: Handle unreachable machines
 TODO: Add --detach cli flag
 TODO: Add auto sync
+DONE: Rename Sync to Track

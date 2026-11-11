@@ -13,7 +13,7 @@ pub struct Args {
 pub enum Command {
     Push,
     Pull { machine: String },
-    Sync { path: PathBuf },
+    Track { path: PathBuf },
     InitConfig { main_machine: String },
 }
 

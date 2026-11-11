@@ -34,7 +34,7 @@ fn main() -> Result<()> {
             }
         }
         Cmd::Pull { machine } => todo!(),
-        Cmd::Sync { path } => {
+        Cmd::Track { path } => {
             let path = path.absolutize()?;
             let mut conf = Config::load()?;
             conf.add_path(path);
