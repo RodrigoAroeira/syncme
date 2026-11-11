@@ -7,6 +7,8 @@ const CONFIG_FILENAME: &str = concat!(env!("CARGO_PKG_NAME"), "-conf.json");
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Config {
+    // TODO: Find a way to not rely on explicit local machine identifier this
+    this_machine: String,
     main_machine: String,
     connected_machines: Vec<String>,
     paths: Vec<PathBuf>,
@@ -14,8 +16,14 @@ pub struct Config {
 
 impl Config {
     pub fn new(main_machine: String) -> Self {
+        let this_machine = std::fs::read_to_string("/etc/hostname")
+            .as_deref()
+            .map(str::trim)
+            .map(String::from)
+            .unwrap_or_default();
         Self {
             main_machine,
+            this_machine,
             ..Default::default()
         }
     }
@@ -23,6 +31,22 @@ impl Config {
         let path = get_path()?;
         let bytes = std::fs::read(path)?;
         Ok(serde_json::from_slice(&bytes)?)
+    }
+
+    pub fn this(&self) -> &str {
+        &self.this_machine
+    }
+
+    pub fn main(&self) -> &str {
+        &self.main_machine
+    }
+
+    pub fn paths(&self) -> &[PathBuf] {
+        &self.paths
+    }
+
+    pub fn machines(&self) -> &[String] {
+        &self.connected_machines
     }
 
     pub fn save(&self) -> Result<()> {
