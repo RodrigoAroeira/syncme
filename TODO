@@ -14,5 +14,6 @@ TODO: Introduce data protection logic
 TODO: Handle unreachable machines
 TODO: Add --detach cli flag
 TODO: Add auto sync
+TODO: Solve different Config.paths() possible problem. Can be a problem in push and pulls. Possible fixes: sync configs, `pull` fetches remote config first or have bidirectional manifest sync (union of both lists)
 DONE: Rename Sync to Track
 DONE: Untrack command
