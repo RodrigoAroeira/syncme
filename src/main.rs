@@ -2,6 +2,7 @@
 
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
+use path_absolutize::Absolutize;
 
 mod cli;
 mod config;
@@ -34,6 +35,7 @@ fn main() -> Result<()> {
         }
         Cmd::Pull { machine } => todo!(),
         Cmd::Sync { path } => {
+            let path = path.absolutize()?;
             let mut conf = Config::load()?;
             conf.add_path(path);
             conf.save()?;
