@@ -174,81 +174,113 @@ fn get_path() -> Result<PathBuf> {
 mod tests {
     use super::*;
 
+    const MAIN: &str = "primary-node";
+    const BASHRC: &str = "/home/user/.bashrc";
+    const MACHINE_NAME: &str = "machine";
+
+    fn test_config() -> Config {
+        Config::new(MAIN.to_string())
+    }
+
+    fn temp_config_file() -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(CONFIG_FILENAME);
+        (dir, path)
+    }
+
+    struct Fixture {
+        subdir: PathBuf,
+        file: PathBuf,
+        missing: PathBuf,
+    }
+
+    fn fixture() -> (tempfile::TempDir, Fixture) {
+        let dir = tempfile::tempdir().unwrap();
+        let dirpath = dir.path();
+        let subdir = dirpath.join("subdir");
+        let file = dirpath.join("file");
+        let missing = dirpath.join("missing");
+        std::fs::create_dir(&subdir).unwrap();
+        std::fs::write(&file, "").unwrap();
+        (
+            dir,
+            Fixture {
+                subdir,
+                file,
+                missing,
+            },
+        )
+    }
+
     #[test]
     fn config_save_and_load() -> Result<()> {
-        let dir = tempfile::tempdir()?;
-        let config_file = dir.path().join("syncme-conf.json");
+        let (_dir, config_file) = temp_config_file();
 
-        let mut config = Config::new("primary_node".to_string());
-        config.add_path("/home/user/.bashrc");
+        let mut config = test_config();
+        config.add_path(BASHRC);
         config.save_to(&config_file)?;
 
         let loaded = Config::load_from(&config_file)?;
-        assert_eq!(loaded.main(), "primary_node");
-        assert_eq!(loaded.paths(), &[PathBuf::from("/home/user/.bashrc")]);
+        assert_eq!(loaded.main(), MAIN);
+        assert_eq!(loaded.paths(), &[PathBuf::from(BASHRC)]);
 
         Ok(())
     }
 
     #[test]
     fn add_path_deduplication() {
-        let mut config = Config::new("primary_node".to_string());
-        config.add_path("/home/user/.bashrc");
-        config.add_path("/home/user/.bashrc");
+        let mut config = test_config();
+        config.add_path(BASHRC);
+        config.add_path(BASHRC);
 
         assert_eq!(config.paths().len(), 1);
-        assert_eq!(config.paths()[0], Path::new("/home/user/.bashrc"));
+        assert_eq!(config.paths()[0], Path::new(BASHRC));
     }
 
     #[test]
     fn untrack_path() {
-        let mut config = Config::new("primary_node".to_string());
-        let path = "/home/user/.bashrc";
-        config.add_path(path);
-        assert!(config.untrack_path(path).is_ok());
+        let mut config = test_config();
+
+        config.add_path(BASHRC);
+        assert!(config.untrack_path(BASHRC).is_ok());
         assert_eq!(config.paths().len(), 0);
-        assert!(config.untrack_path(path).is_err());
+        assert!(config.untrack_path(BASHRC).is_err());
     }
 
     #[test]
     fn add_machine() {
-        let mut config = Config::new("primary_node".to_string());
-        let name = "machine".to_string();
-        config.add_machine(name.clone());
-        assert!(config.machines().contains(&name));
-        config.add_machine(name);
+        let mut config = test_config();
+        let machine = MACHINE_NAME.to_string();
+        config.add_machine(machine.clone());
+
+        assert!(config.machines().contains(&machine));
+        config.add_machine(machine);
         assert_eq!(config.machines().len(), 1);
     }
 
     #[test]
     fn rm_machine() {
-        let mut config = Config::new("primary_node".to_string());
-        let name = "machine".to_string();
-        config.add_machine(name.clone());
-        assert!(config.rm_machine(&name).is_ok());
+        let mut config = test_config();
+        config.add_machine(MACHINE_NAME.to_string());
+        assert!(config.rm_machine(MACHINE_NAME).is_ok());
     }
 
     #[test]
     fn normalize_paths_dirs_only() {
-        let dir = tempfile::tempdir().unwrap();
-        let dirpath = dir.path();
-        let subdir = dirpath.join("sub");
-        let file = dirpath.join("file");
-        let missing = dirpath.join("missing");
-        std::fs::create_dir(&subdir).unwrap();
-        std::fs::write(&file, "").unwrap();
+        let (_dir, f) = fixture();
 
-        assert!(normalize_path(&subdir).to_string_lossy().ends_with('/'));
-        assert!(!normalize_path(&file).to_string_lossy().ends_with('/'));
-        assert_eq!(normalize_path(&missing), missing);
+        assert!(normalize_path(&f.subdir).to_string_lossy().ends_with('/'));
+        assert!(!normalize_path(&f.file).to_string_lossy().ends_with('/'));
+        assert_eq!(normalize_path(&f.missing), f.missing);
     }
 
     #[test]
     fn load_normalizes_existing_paths() -> Result<()> {
-        let dir = tempfile::tempdir()?;
+        let (dir, config_file) = temp_config_file();
         let subdir = dir.path().join("subdir");
+
         std::fs::create_dir(&subdir)?;
-        let config_file = dir.path().join("syncme-conf.json");
+
         let json = format!(
             r#"{{"this_machine":"m","main_machine":"m","connected_machines":[],"paths":["{}"]}}"#,
             subdir.display()
@@ -263,12 +295,11 @@ mod tests {
 
     #[test]
     fn save_writes_canonical_paths() -> Result<()> {
-        let dir = tempfile::tempdir()?;
+        let (dir, config_file) = temp_config_file();
         let subdir = dir.path().join("subdir");
         std::fs::create_dir(&subdir)?;
-        let config_file = dir.path().join("syncme-conf.json");
 
-        let mut config = Config::new("primary_node".to_string());
+        let mut config = test_config();
         config.add_path(&subdir);
         config.save_to(&config_file)?;
 
@@ -280,20 +311,15 @@ mod tests {
 
     #[test]
     fn prune_paths_removes_missing_and_normalizes() -> Result<()> {
-        let dir = tempfile::tempdir()?;
-        let subdir = dir.path().join("subdir");
-        let file = dir.path().join("file");
-        let missing = dir.path().join("missing");
-        std::fs::create_dir(&subdir)?;
-        std::fs::write(&file, "x")?;
+        let (_dir, f) = fixture();
 
-        let mut config = Config::new("primary_node".to_string());
-        config.add_path(&subdir);
-        config.add_path(&file);
-        config.add_path(&missing);
+        let mut config = test_config();
+        config.add_path(&f.subdir);
+        config.add_path(&f.file);
+        config.add_path(&f.missing);
 
         let removed = config.prune_paths();
-        assert_eq!(removed, vec![missing]);
+        assert_eq!(removed, vec![f.missing.clone()]);
         assert_eq!(config.paths().len(), 2);
         assert!(config.paths()[0].to_string_lossy().ends_with('/'));
 
