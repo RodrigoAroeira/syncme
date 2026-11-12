@@ -33,22 +33,22 @@ pub fn remote_path(file: &Path, home: &Path) -> PathBuf {
 mod tests {
     use super::*;
 
+    fn get_home() -> &'static Path {
+        "/home/user".as_ref()
+    }
+
     #[test]
     fn remote_path_inside_home() {
-        let home = Path::new("/home/user");
-        let file = Path::new("/home/user/.config/app/conf.json");
-        assert_eq!(remote_path(file, home), Path::new(".config/app/conf.json"));
+        let home = get_home();
+        let file = home.join(".config/app/conf.json");
+        assert_eq!(remote_path(&file, home), Path::new(".config/app/conf.json"));
     }
 
     #[test]
     fn remote_path_outside_home() {
-        let home = Path::new("/home/user");
+        let home = get_home();
         let file = Path::new("/etc/hosts");
         assert_eq!(remote_path(file, home), Path::new("/etc/hosts"));
-    }
-
-    fn get_home() -> &'static Path {
-        "/home/user".as_ref()
     }
 
     #[test]
