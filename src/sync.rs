@@ -32,6 +32,10 @@ pub fn rsync(src: &str, dest: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn remote_spec(machine: &str, path: &str) -> String {
+    format!("{machine}:{path}")
+}
+
 pub fn remote_path(file: &Path, home: &Path) -> PathBuf {
     let Ok(rel) = file.strip_prefix(home) else {
         return file.to_path_buf();
