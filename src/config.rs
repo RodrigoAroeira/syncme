@@ -99,11 +99,11 @@ impl Config {
 
     pub fn untrack_path<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let path = path.as_ref();
-        self.paths
-            .iter()
-            .position(|p| p == path)
-            .map(|idx| _ = self.paths.remove(idx))
-            .ok_or_else(|| ConfigError::PathNotTracked(path.into()))
+        remove_first(
+            &mut self.paths,
+            |p| p == path,
+            || ConfigError::PathNotTracked(path.into()),
+        )
     }
 
     pub fn add_machine(&mut self, name: String) {
@@ -115,11 +115,11 @@ impl Config {
 
     pub fn rm_machine(&mut self, name: &str) -> Result<()> {
         let name = name.trim();
-        self.connected_machines
-            .iter()
-            .position(|m| m == name)
-            .map(|idx| _ = self.connected_machines.remove(idx))
-            .ok_or_else(|| ConfigError::MachineNotListed(name.into()))
+        remove_first(
+            &mut self.connected_machines,
+            |m| m.as_str() == name,
+            || ConfigError::MachineNotListed(name.to_string()),
+        )
     }
 
     pub fn prune_paths(&mut self) -> Vec<PathBuf> {
@@ -138,6 +138,16 @@ impl Config {
             *path = normalize_path(path);
         }
     }
+}
+
+fn remove_first<T>(
+    items: &mut Vec<T>,
+    pred: impl Fn(&T) -> bool,
+    err: impl FnOnce() -> ConfigError,
+) -> Result<()> {
+    let idx = items.iter().position(pred).ok_or_else(err)?;
+    items.remove(idx);
+    Ok(())
 }
 
 fn normalize_path(path: &Path) -> PathBuf {
