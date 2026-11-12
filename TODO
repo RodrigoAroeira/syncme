@@ -4,7 +4,6 @@ TODO: fix init config is_err => could be missing or malformed.Maybe go forward i
 TODO: write tests to make sure program will always work as expected. Mock rsync machines, etc
 TODO: Make crossplatform
 TODO: Introduce supervisor daemon
-TODO: Introduce custom errors instead of using anyhow
 TODO: Write doc comments
 TODO: Add ignore patterns in cli and config
 TODO: Introduce data protection logic
@@ -16,3 +15,4 @@ DONE: Rename Sync to Track
 DONE: Untrack command
 DONE: Write commands for machine management
 DONE: Pull command
+DONE: Introduce custom errors

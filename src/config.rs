@@ -1,9 +1,28 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 const CONFIG_FILENAME: &str = concat!(env!("CARGO_PKG_NAME"), "-conf.json");
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("could not locate the config directory")]
+    ConfigDir,
+
+    #[error("config I/O failed")]
+    Io(#[from] std::io::Error),
+
+    #[error("config JSON failed")]
+    Json(#[from] serde_json::Error),
+
+    #[error("path '{}' is not being tracked", .0.display())]
+    PathNotTracked(PathBuf),
+
+    #[error("machine '{0}' is not in the list")]
+    MachineNotListed(String),
+}
+
+pub type Result<T> = std::result::Result<T, ConfigError>;
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Config {
@@ -32,7 +51,7 @@ impl Config {
     }
 
     pub fn load_from<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let bytes = std::fs::read(path)?;
+        let bytes = fs_err::read(path)?;
         let mut config: Self = serde_json::from_slice(&bytes)?;
         config.normalize_paths();
         Ok(config)
@@ -60,12 +79,12 @@ impl Config {
 
     pub fn save_to<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
-        let obj = serde_json::to_string_pretty(self).context("generate json from Config")?;
+        let obj = serde_json::to_string_pretty(self)?;
 
         let tmp = path.with_added_extension(".tmp");
-        std::fs::write(&tmp, obj).context("Write to temp file")?;
-        std::fs::rename(&tmp, path)
-            .with_context(|| format!("Rename '{}' to '{}'", tmp.display(), path.display()))
+        fs_err::write(&tmp, obj)?;
+        fs_err::rename(&tmp, path)?;
+        Ok(())
     }
 
     pub fn add_path<P: AsRef<Path>>(&mut self, path: P) {
@@ -82,7 +101,7 @@ impl Config {
             .iter()
             .position(|p| p == path)
             .map(|idx| _ = self.paths.remove(idx))
-            .with_context(|| format!("Path '{}' is not being tracked", path.display()))
+            .ok_or_else(|| ConfigError::PathNotTracked(path.into()))
     }
 
     pub fn add_machine(&mut self, name: String) {
@@ -98,7 +117,7 @@ impl Config {
             .iter()
             .position(|m| m == name)
             .map(|idx| _ = self.connected_machines.remove(idx))
-            .with_context(|| format!("Machine '{}' is not in the list", name))
+            .ok_or_else(|| ConfigError::MachineNotListed(name.into()))
     }
 
     pub fn prune_paths(&mut self) -> Vec<PathBuf> {
@@ -138,7 +157,7 @@ fn normalize_path(path: &Path) -> PathBuf {
 fn get_path() -> Result<PathBuf> {
     dirs::config_dir()
         .map(|p| p.join(CONFIG_FILENAME))
-        .context("get config dir")
+        .ok_or(ConfigError::ConfigDir)
 }
 
 #[cfg(test)]

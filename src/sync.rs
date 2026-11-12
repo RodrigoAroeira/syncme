@@ -1,15 +1,32 @@
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, ExitStatus};
 
-use anyhow::{Context, Result, ensure};
+#[derive(Debug, thiserror::Error)]
+pub enum SyncError {
+    #[error("could not run rsync")]
+    Spawn(#[from] std::io::Error),
+    #[error("rsync failed for '{src}' -> {dest} ({status})")]
+    Failed {
+        src: String,
+        dest: String,
+        status: ExitStatus,
+    },
+}
+
+pub type Result<T> = std::result::Result<T, SyncError>;
 
 pub fn rsync(src: &str, dest: &str) -> Result<()> {
     let status = Command::new("rsync")
         .args(["-avz", "--delete", "--mkpath", "--progress", src, dest])
-        .status()
-        .context("Failed to execute rsync.")?;
+        .status()?;
 
-    ensure!(status.success(), "rsync failed with status: {status}");
+    if !status.success() {
+        return Err(SyncError::Failed {
+            src: src.into(),
+            dest: dest.into(),
+            status,
+        });
+    }
     Ok(())
 }
 

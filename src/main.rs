@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use clap::Parser;
 use path_absolutize::Absolutize;
 
@@ -6,7 +6,7 @@ mod cli;
 mod config;
 mod sync;
 
-use config::Config;
+use config::{Config, ConfigError as CE};
 
 fn main() -> Result<()> {
     use cli::Command as Cmd;
@@ -40,7 +40,11 @@ fn main() -> Result<()> {
         }
         Cmd::Config { cmd } => match cmd {
             CCmd::Init { main_machine } => {
-                ensure!(Config::load().is_err(), "config already exists");
+                match Config::load() {
+                    Ok(_) => bail!("config already exists"),
+                    Err(CE::Io(src)) if src.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => Err(e)?,
+                }
                 Config::new(main_machine).save()?;
             }
             CCmd::Print => {
@@ -87,7 +91,7 @@ fn main() -> Result<()> {
 
                 ensure!(
                     !remote_path.is_empty(),
-                    "refusig to sync the home directory itself"
+                    "refusing to sync the home directory itself"
                 );
 
                 sync::rsync(&format!("{machine}:{remote_path}"), local_path)?;
