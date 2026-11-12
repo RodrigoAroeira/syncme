@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::util;
+
 const CONFIG_FILENAME: &str = concat!(env!("CARGO_PKG_NAME"), "-conf.json");
 
 #[derive(Debug, thiserror::Error)]
@@ -146,9 +148,7 @@ fn normalize_path(path: &Path) -> PathBuf {
     };
 
     if meta.is_dir() {
-        let mut os = normalized.into_os_string();
-        os.push("/");
-        PathBuf::from(os)
+        util::with_trailing_slash(normalized)
     } else {
         normalized
     }

@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
+use crate::util;
+
 #[derive(Debug, thiserror::Error)]
 pub enum SyncError {
     #[error("could not run rsync")]
@@ -38,9 +40,7 @@ pub fn remote_path(file: &Path, home: &Path) -> PathBuf {
     // strip_prefix removes trailing slash somehow
     // it's important for rsync
     if file.to_string_lossy().ends_with('/') {
-        let mut os = rel.as_os_str().to_os_string();
-        os.push("/");
-        PathBuf::from(os)
+        util::with_trailing_slash(rel)
     } else {
         rel.to_path_buf()
     }

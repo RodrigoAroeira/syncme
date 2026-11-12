@@ -5,6 +5,7 @@ use path_absolutize::Absolutize;
 mod cli;
 mod config;
 mod sync;
+mod util;
 
 use config::{Config, ConfigError as CE};
 
