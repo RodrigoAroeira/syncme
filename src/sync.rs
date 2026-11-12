@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 
 pub fn rsync(src: &str, dest: &str) -> Result<()> {
     let status = Command::new("rsync")
-        .args(["-avz", "--mkpath", "--progress", src, dest])
+        .args(["-avz", "--delete", "--mkpath", "--progress", src, dest])
         .status()
         .context("Failed to execute rsync.")?;
 
@@ -63,5 +63,25 @@ mod tests {
         let home = get_home();
         let file = "/foo/bar/".as_ref();
         assert_eq!(remote_path(file, home).to_str(), Some("/foo/bar/"));
+    }
+
+    #[test]
+    fn dirs_overwritten() {
+        let dir1 = tempfile::tempdir().unwrap();
+        let dir1_path = dir1.path();
+        std::fs::write(dir1_path.join("foo"), "foo").unwrap();
+
+        let dir2 = tempfile::tempdir().unwrap();
+        let dir2_path = dir2.path();
+        std::fs::write(dir2_path.join("stale"), "stale").unwrap();
+
+        let src = format!("{}/", dir1_path.display());
+        let dest = dir2_path.to_str().unwrap();
+        rsync(&src, dest).unwrap();
+        rsync(&src, dest).unwrap();
+
+        assert!(dir2_path.join("foo").exists());
+        assert!(!dir2_path.join("stale").exists());
+        assert!(!dir2_path.join(dir1_path.file_name().unwrap()).exists());
     }
 }
