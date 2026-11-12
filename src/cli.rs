@@ -12,6 +12,10 @@ pub struct Args {
 #[derive(Subcommand)]
 pub enum Command {
     Push,
+    Config {
+        #[command(subcommand)]
+        cmd: ConfigCmd,
+    },
     Prune {
         #[arg(short, long)]
         verbose: bool,
@@ -24,9 +28,6 @@ pub enum Command {
     },
     Untrack {
         path: PathBuf,
-    },
-    InitConfig {
-        main_machine: String,
     },
     Machine {
         #[command(subcommand)]
@@ -45,6 +46,11 @@ pub enum MachineCmd {
     },
     #[command(alias = "ls")]
     List,
+}
+
+#[derive(Subcommand)]
+pub enum ConfigCmd {
+    Init { main_machine: String },
 }
 
 #[cfg(test)]

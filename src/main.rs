@@ -10,6 +10,7 @@ use config::Config;
 
 fn main() -> Result<()> {
     use cli::Command as Cmd;
+    use cli::ConfigCmd as CCmd;
     use cli::MachineCmd as MCmd;
 
     let home = dirs::home_dir().context("Unable to get home dir")?;
@@ -37,6 +38,12 @@ fn main() -> Result<()> {
                 }
             }
         }
+        Cmd::Config { cmd } => match cmd {
+            CCmd::Init { main_machine } => {
+                ensure!(Config::load().is_err(), "config already exists");
+                Config::new(main_machine).save()?;
+            }
+        },
         Cmd::Prune { verbose } => {
             let mut conf = Config::load()?;
             let removed = conf.prune_paths();
@@ -92,10 +99,6 @@ fn main() -> Result<()> {
             let mut conf = Config::load()?;
             conf.untrack_path(path)?;
             conf.save()?;
-        }
-        Cmd::InitConfig { main_machine } => {
-            ensure!(Config::load().is_err(), "config already exists");
-            Config::new(main_machine).save()?;
         }
         Cmd::Machine { cmd } => {
             let mut conf = Config::load()?;
