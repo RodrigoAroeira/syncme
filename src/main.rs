@@ -1,5 +1,3 @@
-#![expect(dead_code, unused_variables)]
-
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use path_absolutize::Absolutize;
@@ -35,7 +33,33 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Cmd::Pull { machine } => todo!(),
+        Cmd::Pull { machine } => {
+            let conf = Config::load()?;
+            // Not sure if this ensure is correct
+            ensure!(
+                conf.this() != conf.main(),
+                "Nothing to do: already on main machine",
+            );
+
+            ensure!(
+                conf.this() != machine,
+                "Nothing to do: target is current machine",
+            );
+            ensure!(
+                conf.machines().contains(&machine),
+                "target machine not found in configured machines",
+            );
+
+            for file in conf.paths() {
+                let local_path = file.to_str().context("invalid UTF-8 path")?;
+
+                let remote_path = sync::remote_path(file, &home)
+                    .to_str()
+                    .context("invalid UTF-8 path")?;
+
+                sync::rsync(&format!("{machine}:{remote_path}"), local_path)?;
+            }
+        }
         Cmd::Track { path } => {
             let path = path.absolutize()?;
             let mut conf = Config::load()?;

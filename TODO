@@ -1,4 +1,3 @@
-TODO: Pull command
 TODO: dry-run flags
 TODO: refactor this_machine entry
 TODO: fix init config is_err => could be missing or malformed.Maybe go forward if file exists
@@ -16,3 +15,4 @@ TODO: Solve different Config.paths() possible problem. Can be a problem in push 
 DONE: Rename Sync to Track
 DONE: Untrack command
 DONE: Write commands for machine management
+DONE: Pull command
