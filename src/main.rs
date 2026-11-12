@@ -15,9 +15,26 @@ fn main() -> Result<()> {
 
     let home = dirs::home_dir().context("Unable to get home dir")?;
     let args = cli::Args::parse();
+
+    // Handling this case earlier allows for a single creation point for conf
+    // instead of creating inside of every block in the match
+    if let Cmd::Config {
+        cmd: CCmd::Init { main_machine },
+    } = &args.cmd
+    {
+        match Config::load() {
+            Ok(_) => bail!("config already exists"),
+            Err(CE::Io(src)) if src.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => Err(e)?,
+        }
+
+        Config::new(main_machine.clone()).save()?;
+        return Ok(());
+    }
+
+    let mut conf = Config::load()?;
     match args.cmd {
         Cmd::Push => {
-            let conf = Config::load()?;
             for file in conf.paths() {
                 let path_str = file.to_str().context("invalid UTF-8 path")?;
 
@@ -39,22 +56,13 @@ fn main() -> Result<()> {
             }
         }
         Cmd::Config { cmd } => match cmd {
-            CCmd::Init { main_machine } => {
-                match Config::load() {
-                    Ok(_) => bail!("config already exists"),
-                    Err(CE::Io(src)) if src.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(e) => Err(e)?,
-                }
-                Config::new(main_machine).save()?;
-            }
+            CCmd::Init { .. } => unreachable!("Handled earlier"),
             CCmd::Print => {
-                let conf = Config::load()?;
                 let s = serde_json::to_string_pretty(&conf)?;
                 println!("{s}");
             }
         },
         Cmd::Prune { verbose } => {
-            let mut conf = Config::load()?;
             let removed = conf.prune_paths();
             conf.save()?;
             println!("pruned {} missing path(s)", removed.len());
@@ -65,7 +73,6 @@ fn main() -> Result<()> {
             }
         }
         Cmd::Pull { machine } => {
-            let conf = Config::load()?;
             // Not sure if this ensure is correct
             ensure!(
                 conf.this() != conf.main(),
@@ -99,18 +106,15 @@ fn main() -> Result<()> {
         }
         Cmd::Track { path } => {
             let path = path.absolutize()?;
-            let mut conf = Config::load()?;
             conf.add_path(path);
             conf.save()?;
         }
         Cmd::Untrack { path } => {
             let path = path.absolutize()?;
-            let mut conf = Config::load()?;
             conf.untrack_path(path)?;
             conf.save()?;
         }
         Cmd::Machine { cmd } => {
-            let mut conf = Config::load()?;
             match cmd {
                 MCmd::Add { name } => conf.add_machine(name),
                 MCmd::Remove { name } => conf.rm_machine(&name)?,
