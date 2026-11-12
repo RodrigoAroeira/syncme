@@ -85,8 +85,10 @@ fn main() -> Result<()> {
                     for m in conf.machines() {
                         println!("- {m}");
                     }
+                    return Ok(());
                 }
             }
+            conf.save()?;
         }
     }
     Ok(())
