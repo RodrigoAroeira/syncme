@@ -37,6 +37,17 @@ fn main() -> Result<()> {
                 }
             }
         }
+        Cmd::Prune { verbose } => {
+            let mut conf = Config::load()?;
+            let removed = conf.prune_paths();
+            conf.save()?;
+            println!("pruned {} missing path(s)", removed.len());
+            if verbose {
+                for path in removed {
+                    println!("\t{}", path.display());
+                }
+            }
+        }
         Cmd::Pull { machine } => {
             let conf = Config::load()?;
             // Not sure if this ensure is correct

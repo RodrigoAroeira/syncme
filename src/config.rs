@@ -101,6 +101,17 @@ impl Config {
             .with_context(|| format!("Machine '{}' is not in the list", name))
     }
 
+    pub fn prune_paths(&mut self) -> Vec<PathBuf> {
+        let (kept, removed) = self
+            .paths
+            .drain(..)
+            .partition(|p| std::fs::symlink_metadata(p).is_ok());
+
+        self.paths = kept;
+        self.normalize_paths();
+        removed
+    }
+
     fn normalize_paths(&mut self) {
         for path in self.paths.iter_mut() {
             *path = normalize_path(path);
@@ -234,6 +245,28 @@ mod tests {
 
         let raw = std::fs::read_to_string(&config_file)?;
         assert!(raw.contains(&format!("\"{}/\"", subdir.display())));
+
+        Ok(())
+    }
+
+    #[test]
+    fn prune_paths_removes_missing_and_normalizes() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let subdir = dir.path().join("subdir");
+        let file = dir.path().join("file");
+        let missing = dir.path().join("missing");
+        std::fs::create_dir(&subdir)?;
+        std::fs::write(&file, "x")?;
+
+        let mut config = Config::new("primary_node".to_string());
+        config.add_path(&subdir);
+        config.add_path(&file);
+        config.add_path(&missing);
+
+        let removed = config.prune_paths();
+        assert_eq!(removed, vec![missing]);
+        assert_eq!(config.paths().len(), 2);
+        assert!(config.paths()[0].to_string_lossy().ends_with('/'));
 
         Ok(())
     }

@@ -12,6 +12,10 @@ pub struct Args {
 #[derive(Subcommand)]
 pub enum Command {
     Push,
+    Prune {
+        #[arg(short, long)]
+        verbose: bool,
+    },
     Pull {
         machine: String,
     },
