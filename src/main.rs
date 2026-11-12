@@ -22,6 +22,10 @@ fn main() -> Result<()> {
 
                 let remote_rel = sync::remote_path(file, &home);
                 let remote_path = remote_rel.to_str().context("invalid UTF-8 path")?;
+                ensure!(
+                    !remote_path.is_empty(),
+                    "refusing to sync the home directory itself"
+                );
                 if conf.this() == conf.main() {
                     // Send to other machines
                     for machine in conf.machines() {
@@ -57,6 +61,11 @@ fn main() -> Result<()> {
                     .to_str()
                     .map(String::from)
                     .context("invalid UTF-8 path")?;
+
+                ensure!(
+                    !remote_path.is_empty(),
+                    "refusig to sync the home directory itself"
+                );
 
                 sync::rsync(&format!("{machine}:{remote_path}"), local_path)?;
             }
