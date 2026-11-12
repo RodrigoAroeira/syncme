@@ -51,6 +51,7 @@ pub enum MachineCmd {
 #[derive(Subcommand)]
 pub enum ConfigCmd {
     Init { main_machine: String },
+    Print,
 }
 
 #[cfg(test)]

@@ -43,6 +43,11 @@ fn main() -> Result<()> {
                 ensure!(Config::load().is_err(), "config already exists");
                 Config::new(main_machine).save()?;
             }
+            CCmd::Print => {
+                let conf = Config::load()?;
+                let s = serde_json::to_string_pretty(&conf)?;
+                println!("{s}");
+            }
         },
         Cmd::Prune { verbose } => {
             let mut conf = Config::load()?;
