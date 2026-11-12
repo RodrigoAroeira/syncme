@@ -55,6 +55,7 @@ fn main() -> Result<()> {
 
                 let remote_path = sync::remote_path(file, &home)
                     .to_str()
+                    .map(String::from)
                     .context("invalid UTF-8 path")?;
 
                 sync::rsync(&format!("{machine}:{remote_path}"), local_path)?;

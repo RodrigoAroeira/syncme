@@ -45,8 +45,9 @@ pub enum MachineCmd {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use clap::CommandFactory;
+
+    use super::*;
 
     #[test]
     fn verify_cli() {
