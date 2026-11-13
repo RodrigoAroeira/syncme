@@ -40,6 +40,9 @@ pub fn remote_path(file: &Path, home: &Path) -> PathBuf {
     let Ok(rel) = file.strip_prefix(home) else {
         return file.to_path_buf();
     };
+    if rel.as_os_str().is_empty() {
+        return PathBuf::new();
+    }
 
     // strip_prefix removes trailing slash somehow
     // it's important for rsync
@@ -56,6 +59,14 @@ mod tests {
 
     fn get_home() -> &'static Path {
         "/home/user".as_ref()
+    }
+
+    #[test]
+    fn remote_path_is_home() {
+        assert_eq!(
+            remote_path(&get_home().join(""), get_home()).to_str(),
+            Some("")
+        );
     }
 
     #[test]
