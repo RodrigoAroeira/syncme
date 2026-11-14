@@ -18,7 +18,7 @@ pub fn init(main_machine: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn print(conf: &Config) -> Result<()> {
+pub fn print(conf: &Config) -> serde_json::Result<()> {
     println!("{}", serde_json::to_string_pretty(conf)?);
     Ok(())
 }
