@@ -26,12 +26,17 @@ pub fn print(conf: &Config) -> Result<()> {
 pub fn push(conf: &Config, home: &Path) -> Result<()> {
     for file in conf.paths() {
         let (local, remote) = local_and_remote(file, home)?;
-        if conf.this() == conf.main() {
-            for machine in conf.machines() {
-                sync::rsync(local, &sync::remote_spec(machine, &remote))?;
+        if conf.this() != conf.main() {
+            if let Err(e) = sync::rsync(local, &sync::remote_spec(conf.main(), &remote)) {
+                eprintln!("{e}");
             }
-        } else {
-            sync::rsync(local, &sync::remote_spec(conf.main(), &remote))?;
+            continue;
+        }
+
+        for machine in conf.machines() {
+            if let Err(e) = sync::rsync(local, &sync::remote_spec(machine, &remote)) {
+                eprintln!("{e}");
+            }
         }
     }
     Ok(())
@@ -54,8 +59,13 @@ pub fn pull(conf: &Config, machine: &str, home: &Path) -> Result<()> {
     );
 
     for file in conf.paths() {
-        let (local, remote) = local_and_remote(file, home)?;
-        sync::rsync(&sync::remote_spec(machine, &remote), local)?;
+        if let Err(e) = (|| -> Result<()> {
+            let (local, remote) = local_and_remote(file, home)?;
+            sync::rsync(&sync::remote_spec(machine, &remote), local)?;
+            Ok(())
+        })() {
+            eprintln!("{e}");
+        }
     }
     Ok(())
 }
