@@ -96,7 +96,16 @@ pub fn untrack(conf: &mut Config, path: &Path) -> Result<()> {
 
 pub fn machine(conf: &mut Config, cmd: MCmd) -> Result<()> {
     match cmd {
-        MCmd::Add { name } => conf.add_machine(name),
+        MCmd::Add { name } => {
+            ensure!(!name.is_empty(), "machine name must not be empty");
+            ensure!(!name.contains(':'), "machine name must not contain ':'");
+            ensure!(
+                !name.contains(char::is_whitespace),
+                "machine name must not contain whitespaces"
+            );
+            ensure!(!name.starts_with('-'), "forbidden pattern: leading '-'");
+            conf.add_machine(name);
+        }
         MCmd::Remove { name } => conf.rm_machine(&name)?,
         MCmd::List => {
             for m in conf.machines() {
