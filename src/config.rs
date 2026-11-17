@@ -346,4 +346,66 @@ mod tests {
             Err(ConfigError::Json(_))
         ))
     }
+
+    #[test]
+    fn load_ignores_unknown_fields() -> Result<()> {
+        let (_dir, config_file) = temp_config_file();
+        let json = r#"{"this_machine":"m","main_machine":"m","connected_machines":[],"paths":[],"future":"value"}"#;
+        std::fs::write(&config_file, json)?;
+
+        let loaded = Config::load_from(&config_file)?;
+        assert_eq!(loaded.main(), "m");
+
+        Ok(())
+    }
+
+    #[test]
+    fn prune_keeps_symlinks() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let target = dir.path().join("target");
+        std::fs::write(&target, "")?;
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(&target, &link)?;
+        let broken = dir.path().join("broken");
+        std::os::unix::fs::symlink(dir.path().join("gone"), &broken)?;
+
+        let mut config = test_config();
+        config.add_path(&link);
+        config.add_path(&broken);
+
+        assert!(config.prune_paths().is_empty());
+        assert_eq!(config.paths().len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn save_and_load_roundtrip_unicode_paths() -> Result<()> {
+        let (_dir, config_file) = temp_config_file();
+        let weird = Path::new("/home/user/.config/naïve dir");
+
+        let mut config = test_config();
+        config.add_path(weird);
+        config.save_to(&config_file)?;
+
+        let loaded = Config::load_from(&config_file)?;
+        assert_eq!(loaded.paths(), &[weird]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn save_writes_pretty_json_and_cleans_up() -> Result<()> {
+        let (_dir, config_file) = temp_config_file();
+        let tmp = config_file.with_added_extension(".tmp");
+
+        test_config().save_to(&config_file)?;
+
+        assert!(config_file.exists());
+        assert!(!tmp.exists(), "temporary file was left behind: {tmp:?}");
+        let raw = std::fs::read_to_string(&config_file)?;
+        assert!(raw.contains("\n  \""), "expected pretty JSON, got:\n{raw}");
+
+        Ok(())
+    }
 }
