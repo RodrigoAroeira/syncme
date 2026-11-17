@@ -325,4 +325,25 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn load_missing_file_returns_not_found() {
+        let (_dir, config_file) = temp_config_file();
+
+        match Config::load_from(&config_file) {
+            Err(ConfigError::Io(e)) => assert_eq!(e.kind(), std::io::ErrorKind::NotFound),
+            other => panic!("expected Io(NotFound), got {:?}", other.err()),
+        }
+    }
+
+    #[test]
+    fn load_malformed_file_returns_json_error() {
+        let (_dir, config_file) = temp_config_file();
+        std::fs::write(&config_file, "{ malformed").unwrap();
+
+        assert!(matches!(
+            Config::load_from(&config_file),
+            Err(ConfigError::Json(_))
+        ))
+    }
 }
