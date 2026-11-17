@@ -31,7 +31,9 @@ pub struct Config {
     // TODO: Find a way to not rely on explicit local machine identifier this
     this_machine: String,
     main_machine: String,
+    #[serde(default)]
     connected_machines: Vec<String>,
+    #[serde(default)]
     paths: Vec<PathBuf>,
 }
 
