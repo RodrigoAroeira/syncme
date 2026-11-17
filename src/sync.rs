@@ -98,6 +98,21 @@ mod tests {
     }
 
     #[test]
+    fn rsync_reports_a_failed_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("missing");
+        let dest = dir.path().join("dest");
+
+        let err = rsync(missing.to_str().unwrap(), dest.to_str().unwrap()).unwrap_err();
+
+        assert!(
+            matches!(err, SyncError::Failed { .. }),
+            "unexpected error: {err:?}"
+        );
+    }
+
+
+    #[test]
     fn dirs_overwritten() {
         let dir1 = tempfile::tempdir().unwrap();
         let dir1_path = dir1.path();
