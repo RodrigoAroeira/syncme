@@ -116,4 +116,16 @@ mod tests {
         assert!(!dir2_path.join("stale").exists());
         assert!(!dir2_path.join(dir1_path.file_name().unwrap()).exists());
     }
+
+    #[test]
+    fn remote_path_sibling_prefix_is_untouched() {
+        let file = Path::new("/home/user2/.bashrc");
+        assert_eq!(remote_path(file, get_home()), file)
+    }
+
+    #[test]
+    fn remote_spec_joins_machine_and_path() {
+        assert_eq!(remote_spec("nas", ".bashrc"), "nas:.bashrc");
+        assert_eq!(remote_spec("nas", "/etc/hostname"), "nas:/etc/hostname");
+    }
 }
