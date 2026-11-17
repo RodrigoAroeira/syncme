@@ -115,3 +115,45 @@ fn local_and_remote<'a>(file: &'a Path, home: &Path) -> Result<(&'a str, String)
     ensure!(!remote.is_empty(), "refusing to sync home directory itself");
     Ok((local, remote))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn home() -> &'static Path {
+        "/home/user".as_ref()
+    }
+
+    #[test]
+    fn local_and_remote_maps_inside_home() {
+        let file = home().join(".config/nvim/");
+
+        let (local, remote) = local_and_remote(&file, home()).unwrap();
+
+        assert_eq!(local, "/home/user/.config/nvim/");
+        assert_eq!(remote, ".config/nvim/");
+    }
+
+    #[test]
+    fn local_and_remote_rejects_home() {
+        // join("") appends the trailing slash
+        let file = home().join("");
+
+        let err = local_and_remote(&file, home()).unwrap_err();
+
+        assert!(err.to_string().contains("refusing to sync home directory"));
+    }
+
+    #[test]
+    fn local_and_remote_rejects_non_utf8_paths() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        let raw = OsStr::from_bytes(b"/home/user/\xff");
+        let file = Path::new(raw);
+
+        let err = local_and_remote(file, home()).unwrap_err();
+
+        assert!(err.to_string().contains("invalid UTF-8 path"));
+    }
+}
