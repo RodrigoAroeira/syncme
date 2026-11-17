@@ -9,6 +9,8 @@ use crate::config::{Config, ConfigError as CE};
 use crate::sync;
 
 pub fn init(main_machine: &str) -> Result<()> {
+    ensure!(!main_machine.is_empty(), "main_machine must not be empty");
+
     match Config::load() {
         Ok(_) => bail!("config already exists"),
         Err(CE::Io(e)) if e.kind() == io::ErrorKind::NotFound => {}
