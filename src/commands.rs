@@ -120,6 +120,12 @@ pub fn machine(conf: &mut Config, cmd: MCmd) -> Result<()> {
 fn local_and_remote<'a>(file: &'a Path, home: &Path) -> Result<(&'a str, String)> {
     let local = file.to_str().context("invalid UTF-8 path")?;
     let remote = sync::remote_path(file, home)
+        .with_context(|| {
+            format!(
+                "refusing to sync {}: outside the home directory",
+                file.display()
+            )
+        })?
         .to_str()
         .context("invalid UTF-8 path")?
         .to_owned();

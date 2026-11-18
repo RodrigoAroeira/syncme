@@ -36,21 +36,18 @@ pub fn remote_spec(machine: &str, path: &str) -> String {
     format!("{machine}:{path}")
 }
 
-pub fn remote_path(file: &Path, home: &Path) -> PathBuf {
-    let Ok(rel) = file.strip_prefix(home) else {
-        return file.to_path_buf();
-    };
-    if rel.as_os_str().is_empty() {
-        return PathBuf::new();
-    }
+pub fn remote_path(file: &Path, home: &Path) -> Option<PathBuf> {
+    let rel = file.strip_prefix(home).ok()?;
 
-    // strip_prefix removes trailing slash somehow
-    // it's important for rsync
-    if file.to_string_lossy().ends_with('/') {
+    Some(if rel.as_os_str().is_empty() {
+        PathBuf::new()
+    } else if file.to_string_lossy().ends_with('/') {
+        // strip_prefix removes trailing slash somehow
+        // it's important for rsync
         util::with_trailing_slash(rel)
     } else {
         rel.to_path_buf()
-    }
+    })
 }
 
 #[cfg(test)]
@@ -64,8 +61,8 @@ mod tests {
     #[test]
     fn remote_path_is_home() {
         assert_eq!(
-            remote_path(&get_home().join(""), get_home()).to_str(),
-            Some("")
+            remote_path(&get_home().join(""), get_home()),
+            Some(PathBuf::new())
         );
     }
 
@@ -73,28 +70,31 @@ mod tests {
     fn remote_path_inside_home() {
         let home = get_home();
         let file = home.join(".config/app/conf.json");
-        assert_eq!(remote_path(&file, home), Path::new(".config/app/conf.json"));
+        assert_eq!(
+            remote_path(&file, home),
+            Some(PathBuf::from(".config/app/conf.json"))
+        );
     }
 
     #[test]
     fn remote_path_outside_home() {
         let home = get_home();
         let file = Path::new("/etc/hosts");
-        assert_eq!(remote_path(file, home), Path::new("/etc/hosts"));
+        assert_eq!(remote_path(file, home), None);
     }
 
     #[test]
     fn trailing_slash_inside_home() {
         let home = get_home();
         let file = home.join(".config/");
-        assert_eq!(remote_path(&file, home).to_str(), Some(".config/"));
+        assert_eq!(remote_path(&file, home).unwrap().to_str(), Some(".config/"));
     }
 
     #[test]
     fn trailing_slash_outside_home() {
         let home = get_home();
         let file = "/foo/bar/".as_ref();
-        assert_eq!(remote_path(file, home).to_str(), Some("/foo/bar/"));
+        assert_eq!(remote_path(file, home), None);
     }
 
     #[test]
@@ -132,9 +132,9 @@ mod tests {
     }
 
     #[test]
-    fn remote_path_sibling_prefix_is_untouched() {
+    fn remote_path_sibling_prefix_is_outside() {
         let file = Path::new("/home/user2/.bashrc");
-        assert_eq!(remote_path(file, get_home()), file)
+        assert_eq!(remote_path(file, get_home()).as_deref(), None)
     }
 
     #[test]
