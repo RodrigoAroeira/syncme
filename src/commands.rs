@@ -130,6 +130,11 @@ fn local_and_remote<'a>(file: &'a Path, home: &Path) -> Result<(&'a str, String)
         .context("invalid UTF-8 path")?
         .to_owned();
     ensure!(!remote.is_empty(), "refusing to sync home directory itself");
+    ensure!(
+        !Path::new(&remote).starts_with(".."),
+        "refusing to sync {}: path escapes the home directory",
+        file.display()
+    );
     Ok((local, remote))
 }
 
@@ -172,5 +177,21 @@ mod tests {
         let err = local_and_remote(file, home()).unwrap_err();
 
         assert!(err.to_string().contains("invalid UTF-8 path"));
+    }
+
+    #[test]
+    fn local_and_remote_rejects_parent_dir_escape() {
+        let file = home().join("../etc/hosts");
+        let err = local_and_remote(&file, home()).unwrap_err();
+
+        assert!(err.to_string().contains("path escapes the home directory"));
+    }
+
+    #[test]
+    fn local_and_remote_allows_dot_dot_name() {
+        let file = home().join("..foo");
+        let (_, remote) = local_and_remote(&file, home()).unwrap();
+
+        assert_eq!(remote, "..foo");
     }
 }
