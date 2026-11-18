@@ -111,7 +111,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn dirs_overwritten() {
         let dir1 = tempfile::tempdir().unwrap();
