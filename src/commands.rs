@@ -84,8 +84,18 @@ pub fn prune(conf: &mut Config, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn track(conf: &mut Config, path: &Path) -> Result<()> {
-    conf.add_path(path.absolutize()?);
+pub fn track(conf: &mut Config, path: &Path, home: &Path) -> Result<()> {
+    let path = path.absolutize()?;
+    ensure!(
+        path.as_ref() != home,
+        "refusing to track home directory itself"
+    );
+    ensure!(
+        path.starts_with(home),
+        "refusing to track {}: outside the home directory",
+        path.display()
+    );
+    conf.add_path(path);
     Ok(conf.save()?)
 }
 

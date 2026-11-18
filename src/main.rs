@@ -34,7 +34,7 @@ fn main() -> Result<()> {
         },
         Cmd::Prune { verbose } => commands::prune(&mut conf, verbose)?,
         Cmd::Pull { machine } => commands::pull(&conf, &machine, &home)?,
-        Cmd::Track { path } => commands::track(&mut conf, &path)?,
+        Cmd::Track { path } => commands::track(&mut conf, &path, &home)?,
         Cmd::Untrack { path } => commands::untrack(&mut conf, &path)?,
         Cmd::Machine { cmd } => commands::machine(&mut conf, cmd)?,
     }
