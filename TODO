@@ -10,6 +10,7 @@ TODO: Handle unreachable machines
 TODO: Add --detach cli flag
 TODO: Add auto sync
 TODO: Solve different Config.paths() possible problem. Can be a problem in push and pulls. Possible fixes: sync configs, `pull` fetches remote config first or have bidirectional manifest sync (union of both lists)
+TODO: Decide if syncme pull exclusively from main_machine or if it syncs across all machines the newest file
 DONE: Rename Sync to Track
 DONE: Untrack command
 DONE: Write commands for machine management
