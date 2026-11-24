@@ -26,20 +26,20 @@ pub fn print(conf: &Config) -> serde_json::Result<()> {
 }
 
 pub fn push(conf: &Config, home: &Path) -> Result<()> {
+    let targets = push_targets(conf);
+    let mut failures = 0;
     for file in conf.paths() {
         let (local, remote) = local_and_remote(file, home)?;
-        if conf.this() != conf.main() {
-            if let Err(e) = sync::rsync(local, &sync::remote_spec(conf.main(), &remote)) {
-                eprintln!("{e}");
-            }
-            continue;
-        }
-
-        for machine in conf.machines() {
-            if let Err(e) = sync::rsync(local, &sync::remote_spec(machine, &remote)) {
-                eprintln!("{e}");
+        for machine in targets.iter() {
+            let dest = sync::remote_spec(machine, &remote);
+            if let Err(e) = sync::rsync(local, &dest) {
+                eprintln!("[{machine}] {}: {e:#}", file.display());
+                failures += 1;
             }
         }
+    }
+    if failures != 0 {
+        bail!("{failures} transfer(s) failed")
     }
     Ok(())
 }
@@ -60,14 +60,19 @@ pub fn pull(conf: &Config, machine: &str, home: &Path) -> Result<()> {
         "target machine not found in configured machines",
     );
 
+    let mut failures = 0;
     for file in conf.paths() {
         if let Err(e) = (|| -> Result<()> {
             let (local, remote) = local_and_remote(file, home)?;
             sync::rsync(&sync::remote_spec(machine, &remote), local)?;
             Ok(())
         })() {
-            eprintln!("{e}");
+            eprintln!("[{machine}] {}: {e:#}", file.display());
+            failures += 1;
         }
+    }
+    if failures != 0 {
+        bail!("{failures} transfer(s) failed")
     }
     Ok(())
 }
@@ -148,6 +153,18 @@ fn local_and_remote<'a>(file: &'a Path, home: &Path) -> Result<(&'a str, String)
     Ok((local, remote))
 }
 
+fn push_targets(conf: &Config) -> Vec<String> {
+    if conf.this() != conf.main() {
+        vec![conf.main().to_string()]
+    } else {
+        conf.machines()
+            .iter()
+            .filter(|m| m.as_str() != conf.this())
+            .cloned()
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +220,26 @@ mod tests {
         let (_, remote) = local_and_remote(&file, home()).unwrap();
 
         assert_eq!(remote, "..foo");
+    }
+
+    fn get_config(main: &str, this: &str, machines: &[&str]) -> Config {
+        serde_json::from_value(serde_json::json!({
+            "this_machine": this,
+            "main_machine": main,
+            "connected_machines": machines,
+        }))
+        .expect("valid test config")
+    }
+
+    #[test]
+    fn test_push_target_from_main() {
+        let conf = get_config("main", "main", &["main", "laptop", "desktop"]);
+        assert_eq!(push_targets(&conf), ["laptop", "desktop"])
+    }
+
+    #[test]
+    fn test_push_target_from_peer() {
+        let conf = get_config("main", "laptop", &["main", "laptop", "desktop"]);
+        assert_eq!(push_targets(&conf), ["main"])
     }
 }
