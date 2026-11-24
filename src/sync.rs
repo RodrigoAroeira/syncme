@@ -17,10 +17,23 @@ pub enum SyncError {
 
 pub type Result<T> = std::result::Result<T, SyncError>;
 
+fn rsync_args(src: &str, dest: &str) -> Vec<String> {
+    [
+        "-avz",
+        "--delete",
+        "--mkpath",
+        "--delay-updates",
+        "-i",
+        "--",
+        src,
+        dest,
+    ]
+    .map(String::from)
+    .to_vec()
+}
+
 pub fn rsync(src: &str, dest: &str) -> Result<()> {
-    let status = Command::new("rsync")
-        .args(["-avz", "--delete", "--mkpath", "--progress", src, dest])
-        .status()?;
+    let status = Command::new("rsync").args(rsync_args(src, dest)).status()?;
 
     if !status.success() {
         return Err(SyncError::Failed {
@@ -141,5 +154,22 @@ mod tests {
     fn remote_spec_joins_machine_and_path() {
         assert_eq!(remote_spec("nas", ".bashrc"), "nas:.bashrc");
         assert_eq!(remote_spec("nas", "/etc/hostname"), "nas:/etc/hostname");
+    }
+
+    #[test]
+    fn rsync_args_terminate_options_before_paths() {
+        assert_eq!(
+            rsync_args("/home/user/.bashrc", "host:.bashrc"),
+            [
+                "-avz",
+                "--delete",
+                "--mkpath",
+                "--delay-updates",
+                "-i",
+                "--",
+                "/home/user/.bashrc",
+                "host:.bashrc",
+            ]
+        );
     }
 }
