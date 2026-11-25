@@ -2,9 +2,14 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
+use crate::sync;
+
 #[derive(Parser)]
 #[command(version)]
 pub struct Args {
+    #[command(flatten)]
+    pub opts: sync::Options,
+
     #[command(subcommand)]
     pub cmd: Command,
 }
@@ -16,10 +21,7 @@ pub enum Command {
         #[command(subcommand)]
         cmd: ConfigCmd,
     },
-    Prune {
-        #[arg(short, long)]
-        verbose: bool,
-    },
+    Prune,
     Pull {
         machine: String,
     },

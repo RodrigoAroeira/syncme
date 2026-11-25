@@ -1,7 +1,22 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
+use clap::Args;
+
 use crate::util;
+
+#[derive(Args, Default, Clone, Copy)]
+#[command(next_help_heading = "Sync options")]
+pub struct Options {
+    #[arg(short = 'n', long, global = true)]
+    pub dry_run: bool,
+
+    #[arg(long, global = true, value_name = "N")]
+    pub max_delete: Option<u32>,
+
+    #[arg(short, long, global = true)]
+    pub verbose: bool,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum SyncError {
@@ -17,23 +32,31 @@ pub enum SyncError {
 
 pub type Result<T> = std::result::Result<T, SyncError>;
 
-fn rsync_args(src: &str, dest: &str) -> Vec<String> {
-    [
-        "-avz",
-        "--delete",
-        "--mkpath",
-        "--delay-updates",
-        "-i",
-        "--",
-        src,
-        dest,
-    ]
-    .map(String::from)
-    .to_vec()
+fn rsync_args(src: &str, dest: &str, opts: &Options) -> Vec<String> {
+    let mut args = ["-avz", "--delete", "--mkpath", "--delay-updates", "-i"]
+        .map(String::from)
+        .to_vec();
+
+    if opts.dry_run {
+        args.push("-n".into());
+    }
+    if let Some(max) = opts.max_delete {
+        args.push(format!("--max-delete={max}"));
+    }
+    if opts.verbose {
+        args.push("--progress".into());
+    }
+
+    args.push("--".into());
+    args.push(src.into());
+    args.push(dest.into());
+    args
 }
 
-pub fn rsync(src: &str, dest: &str) -> Result<()> {
-    let status = Command::new("rsync").args(rsync_args(src, dest)).status()?;
+pub fn rsync(src: &str, dest: &str, opts: &Options) -> Result<()> {
+    let status = Command::new("rsync")
+        .args(rsync_args(src, dest, opts))
+        .status()?;
 
     if !status.success() {
         return Err(SyncError::Failed {
@@ -116,7 +139,12 @@ mod tests {
         let missing = dir.path().join("missing");
         let dest = dir.path().join("dest");
 
-        let err = rsync(missing.to_str().unwrap(), dest.to_str().unwrap()).unwrap_err();
+        let err = rsync(
+            missing.to_str().unwrap(),
+            dest.to_str().unwrap(),
+            &Options::default(),
+        )
+        .unwrap_err();
 
         assert!(
             matches!(err, SyncError::Failed { .. }),
@@ -136,8 +164,8 @@ mod tests {
 
         let src = format!("{}/", dir1_path.display());
         let dest = dir2_path.to_str().unwrap();
-        rsync(&src, dest).unwrap();
-        rsync(&src, dest).unwrap();
+        rsync(&src, dest, &Options::default()).unwrap();
+        rsync(&src, dest, &Options::default()).unwrap();
 
         assert!(dir2_path.join("foo").exists());
         assert!(!dir2_path.join("stale").exists());
@@ -159,7 +187,7 @@ mod tests {
     #[test]
     fn rsync_args_terminate_options_before_paths() {
         assert_eq!(
-            rsync_args("/home/user/.bashrc", "host:.bashrc"),
+            rsync_args("/home/user/.bashrc", "host:.bashrc", &Options::default()),
             [
                 "-avz",
                 "--delete",
@@ -171,5 +199,52 @@ mod tests {
                 "host:.bashrc",
             ]
         );
+    }
+
+    #[test]
+    fn rsync_args_apply_safety_options() {
+        let opts = Options {
+            dry_run: true,
+            max_delete: Some(3),
+            verbose: true,
+        };
+
+        assert_eq!(
+            rsync_args("/home/user/.bashrc", "host:.bashrc", &opts),
+            [
+                "-avz",
+                "--delete",
+                "--mkpath",
+                "--delay-updates",
+                "-i",
+                "-n",
+                "--max-delete=3",
+                "--progress",
+                "--",
+                "/home/user/.bashrc",
+                "host:.bashrc",
+            ]
+        );
+    }
+
+    #[test]
+    fn dry_run_does_not_change_destination() {
+        let src_dir = tempfile::tempdir().unwrap();
+        std::fs::write(src_dir.path().join("new"), "new").unwrap();
+
+        let dest_dir = tempfile::tempdir().unwrap();
+        std::fs::write(dest_dir.path().join("stale"), "stale").unwrap();
+
+        let src = format!("{}/", src_dir.path().display());
+        let dest = dest_dir.path().to_str().unwrap();
+        let opts = Options {
+            dry_run: true,
+            ..Options::default()
+        };
+
+        rsync(&src, dest, &opts).unwrap();
+
+        assert!(dest_dir.path().join("stale").exists());
+        assert!(!dest_dir.path().join("new").exists());
     }
 }

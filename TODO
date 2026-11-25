@@ -1,4 +1,4 @@
-TODO: dry-run flags
+DONE: dry-run, max-delete and verbose flags
 TODO: refactor this_machine entry
 TODO: write tests to make sure program will always work as expected. Mock rsync machines, etc
 TODO: Make crossplatform

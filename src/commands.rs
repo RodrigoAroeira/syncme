@@ -25,14 +25,14 @@ pub fn print(conf: &Config) -> serde_json::Result<()> {
     Ok(())
 }
 
-pub fn push(conf: &Config, home: &Path) -> Result<()> {
+pub fn push(conf: &Config, home: &Path, opts: &sync::Options) -> Result<()> {
     let targets = push_targets(conf);
     let mut failures = 0;
     for file in conf.paths() {
         let (local, remote) = local_and_remote(file, home)?;
         for machine in targets.iter() {
             let dest = sync::remote_spec(machine, &remote);
-            if let Err(e) = sync::rsync(local, &dest) {
+            if let Err(e) = sync::rsync(local, &dest, opts) {
                 eprintln!("[{machine}] {}: {e:#}", file.display());
                 failures += 1;
             }
@@ -44,7 +44,7 @@ pub fn push(conf: &Config, home: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn pull(conf: &Config, machine: &str, home: &Path) -> Result<()> {
+pub fn pull(conf: &Config, machine: &str, home: &Path, opts: &sync::Options) -> Result<()> {
     ensure!(
         conf.this() != conf.main(),
         "Nothing to do: already on main machine",
@@ -64,7 +64,7 @@ pub fn pull(conf: &Config, machine: &str, home: &Path) -> Result<()> {
     for file in conf.paths() {
         if let Err(e) = (|| -> Result<()> {
             let (local, remote) = local_and_remote(file, home)?;
-            sync::rsync(&sync::remote_spec(machine, &remote), local)?;
+            sync::rsync(&sync::remote_spec(machine, &remote), local, opts)?;
             Ok(())
         })() {
             eprintln!("[{machine}] {}: {e:#}", file.display());
