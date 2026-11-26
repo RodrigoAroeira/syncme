@@ -42,11 +42,6 @@ Config is stored in `$XDG_CACHE_HOME/syncme-conf.json` or `$HOME/.config/syncme-
 `push` and `pull` use `rsync --delete` for directories: the destination directory
 is a **complete mirror**, and files not present in the source are removed.
 
-- There is no `--dry-run` yet.
 - There are no exclude patterns yet.
-- Tracking an absolute path outside `$HOME` mirrors it to the same absolute path
-on the remote
-- An interrupted directory sync leaves a partial destination.
-- The first failed transfer aborts the remaining paths and machines.
 
 Until these are addressed, try the tool with disposable data or at your own risk.
