@@ -1,4 +1,3 @@
-DONE: dry-run, max-delete and verbose flags
 TODO: refactor this_machine entry
 TODO: write tests to make sure program will always work as expected. Mock rsync machines, etc
 TODO: Make crossplatform
@@ -11,6 +10,8 @@ TODO: Add --detach cli flag
 TODO: Add auto sync
 TODO: Solve different Config.paths() possible problem. Can be a problem in push and pulls. Possible fixes: sync configs, `pull` fetches remote config first or have bidirectional manifest sync (union of both lists)
 TODO: Decide if syncme pull exclusively from main_machine or if it syncs across all machines the newest file
+TODO: Ping targets before trying to sync
+DONE: dry-run, max-delete and verbose flags
 DONE: Rename Sync to Track
 DONE: Untrack command
 DONE: Write commands for machine management
