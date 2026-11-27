@@ -42,11 +42,13 @@ pub enum Command {
 #[derive(Subcommand)]
 pub enum MachineCmd {
     Add {
-        name: String,
+        #[arg(required = true, value_name = "NAME")]
+        names: Vec<String>,
     },
     #[command(alias = "rm")]
     Remove {
-        name: String,
+        #[arg(required = true, value_name = "NAME")]
+        names: Vec<String>,
     },
     #[command(alias = "ls")]
     List,

@@ -13,17 +13,40 @@ fn report_failure(machine: &str, file: &Path, err: impl Display) {
     eprintln!("[{machine}] {}: {err:#}", file.display())
 }
 
-fn report_path_failure(action: &str, path: &Path, err: impl Display) {
-    eprintln!("[{action}] {}: {err:#}", path.display())
-}
-
 fn fail_on_errors(failures: usize) -> Result<()> {
     ensure!(failures == 0, "{failures} transfer(s) failed");
     Ok(())
 }
 
-fn fail_on_path_errors(failures: usize, action: &str) -> Result<()> {
-    ensure!(failures == 0, "{failures} path(s) failed to {action}");
+fn apply_batch<T, R: PartialEq>(
+    items: &[T],
+    action: &str,
+    noun: &str,
+    label: impl Fn(&T) -> String,
+    mut check: impl FnMut(&T) -> Result<R>,
+    mut apply: impl FnMut(R) -> Result<()>,
+) -> Result<()> {
+    ensure!(!items.is_empty(), "no {noun} provided");
+
+    let mut checked = Vec::new();
+    let mut failures = 0;
+
+    for item in items {
+        match check(item) {
+            Ok(value) if !checked.contains(&value) => checked.push(value),
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("[{action}] {}: {e:#}", label(item));
+                failures += 1;
+            }
+        }
+    }
+
+    ensure!(failures == 0, "{failures} {noun} failed validation");
+
+    for value in checked {
+        apply(value)?;
+    }
     Ok(())
 }
 
@@ -103,69 +126,61 @@ pub fn prune(conf: &mut Config, verbose: bool) -> Result<()> {
 }
 
 pub fn track(conf: &mut Config, paths: &[PathBuf], home: &Path) -> Result<()> {
-    ensure!(!paths.is_empty(), "no path(s) provided");
-
-    let mut checked = Vec::new();
-    let mut failures = 0;
-
-    for path in paths {
-        match checked_track_path(path, home) {
-            Ok(path) => checked.push(path),
-            Err(e) => {
-                report_path_failure("track", path, e);
-                failures += 1;
-            }
-        }
-    }
-
-    fail_on_path_errors(failures, "track")?;
-
-    for path in checked {
-        conf.add_path(path);
-    }
+    apply_batch(
+        paths,
+        "track",
+        "path(s)",
+        |path| path.display().to_string(),
+        |path| checked_track_path(path, home),
+        |path| {
+            conf.add_path(path);
+            Ok(())
+        },
+    )?;
     conf.save()?;
     Ok(())
 }
 
 pub fn untrack(conf: &mut Config, paths: &[PathBuf]) -> Result<()> {
-    ensure!(!paths.is_empty(), "no path(s) provided");
-
-    let mut checked = Vec::new();
-    let mut failures = 0;
-
-    for path in paths {
-        match checked_untrack_path(conf, path) {
-            Ok(path) if !checked.contains(&path) => checked.push(path),
-            Ok(_) => {}
-            Err(e) => {
-                report_path_failure("untrack", path, e);
-                failures += 1;
-            }
-        }
-    }
-
-    fail_on_path_errors(failures, "untrack")?;
-
-    for path in checked {
-        conf.untrack_path(path)?;
-    }
+    let tracked = conf.paths().to_vec();
+    apply_batch(
+        paths,
+        "untrack",
+        "path(s)",
+        |path| path.display().to_string(),
+        |path| checked_untrack_path(&tracked, path),
+        |path| conf.untrack_path(path).map_err(Into::into),
+    )?;
     conf.save()?;
     Ok(())
 }
 
 pub fn machine(conf: &mut Config, cmd: MCmd) -> Result<()> {
     match cmd {
-        MCmd::Add { name } => {
-            ensure!(!name.is_empty(), "machine name must not be empty");
-            ensure!(!name.contains(':'), "machine name must not contain ':'");
-            ensure!(
-                !name.contains(char::is_whitespace),
-                "machine name must not contain whitespaces"
-            );
-            ensure!(!name.starts_with('-'), "forbidden pattern: leading '-'");
-            conf.add_machine(name);
+        MCmd::Add { names } => {
+            apply_batch(
+                &names,
+                "machine add",
+                "machine name(s)",
+                |name| name.clone(),
+                |name| validate_machine_name(name).map(|()| name.clone()),
+                |name| {
+                    conf.add_machine(name);
+                    Ok(())
+                },
+            )?;
         }
-        MCmd::Remove { name } => conf.rm_machine(&name)?,
+        MCmd::Remove { names } => {
+            let machines = conf.machines().to_vec();
+            apply_batch(
+                &names,
+                "machine remove",
+                "machine name(s)",
+                |name| name.clone(),
+                |name| checked_remove_machine(&machines, name),
+                |name| conf.rm_machine(&name).map_err(Into::into),
+            )?;
+        }
         MCmd::List => {
             for m in conf.machines() {
                 println!("- {m}");
@@ -174,6 +189,26 @@ pub fn machine(conf: &mut Config, cmd: MCmd) -> Result<()> {
         }
     }
     Ok(conf.save()?)
+}
+
+fn validate_machine_name(name: &str) -> Result<()> {
+    ensure!(!name.is_empty(), "machine name must not be empty");
+    ensure!(!name.contains(':'), "machine name must not contain ':'");
+    ensure!(
+        !name.contains(char::is_whitespace),
+        "machine name must not contain whitespaces"
+    );
+    ensure!(!name.starts_with('-'), "forbidden pattern: leading '-'");
+    Ok(())
+}
+
+fn checked_remove_machine(machines: &[String], name: &str) -> Result<String> {
+    let name = name.trim().to_string();
+    ensure!(
+        machines.iter().any(|m| m.as_str() == name),
+        "machine '{name}' is not in the list"
+    );
+    Ok(name)
 }
 
 fn checked_track_path(path: &Path, home: &Path) -> Result<PathBuf> {
@@ -192,10 +227,10 @@ fn validate_tracked_path(path: &Path, home: &Path) -> Result<()> {
     Ok(())
 }
 
-fn checked_untrack_path(conf: &Config, path: &Path) -> Result<PathBuf> {
+fn checked_untrack_path(tracked: &[PathBuf], path: &Path) -> Result<PathBuf> {
     let absolute = path.absolutize()?.into_owned();
     ensure!(
-        conf.paths()
+        tracked
             .iter()
             .any(|tracked| tracked.as_path() == absolute.as_path()),
         "path '{}' is not being tracked",
@@ -310,11 +345,42 @@ mod tests {
     }
 
     #[test]
+    fn validate_machine_name_accepts_simple_and_user_host() {
+        assert!(validate_machine_name("laptop").is_ok());
+        assert!(validate_machine_name("user@host").is_ok());
+    }
+
+    #[test]
+    fn validate_machine_name_rejects_unsafe_names() {
+        for name in ["", "-host", "a:b", "a b"] {
+            assert!(validate_machine_name(name).is_err(), "accepted {name}");
+        }
+    }
+
+    #[test]
+    fn checked_remove_machine_accepts_listed_name() {
+        let conf = get_config("main", "laptop", &["main", "laptop"]);
+
+        assert_eq!(
+            checked_remove_machine(conf.machines(), "laptop").unwrap(),
+            "laptop"
+        );
+    }
+
+    #[test]
+    fn checked_remove_machine_rejects_unlisted_name() {
+        let conf = get_config("main", "laptop", &["main", "laptop"]);
+        let err = checked_remove_machine(conf.machines(), "desktop").unwrap_err();
+
+        assert!(err.to_string().contains("not in the list"));
+    }
+
+    #[test]
     fn checked_untrack_path_accepts_tracked_path() {
         let mut conf = get_config("main", "laptop", &[]);
         conf.add_path("/home/user/.bashrc");
 
-        let checked = checked_untrack_path(&conf, Path::new("/home/user/.bashrc")).unwrap();
+        let checked = checked_untrack_path(conf.paths(), Path::new("/home/user/.bashrc")).unwrap();
 
         assert_eq!(checked, PathBuf::from("/home/user/.bashrc"));
     }
@@ -322,7 +388,7 @@ mod tests {
     #[test]
     fn checked_untrack_path_rejects_untracked_path() {
         let conf = get_config("main", "laptop", &[]);
-        let err = checked_untrack_path(&conf, Path::new("/home/user/.bashrc")).unwrap_err();
+        let err = checked_untrack_path(conf.paths(), Path::new("/home/user/.bashrc")).unwrap_err();
 
         assert!(err.to_string().contains("not being tracked"));
     }
