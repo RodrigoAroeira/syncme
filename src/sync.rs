@@ -5,6 +5,9 @@ use clap::Args;
 
 use crate::util;
 
+const SSH_COMMAND: &str = "ssh -o BatchMode=yes -o ConnectTimeout=10 \
+    -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=3";
+
 #[derive(Args, Default, Clone, Copy)]
 #[command(next_help_heading = "Sync options")]
 pub struct Options {
@@ -30,12 +33,29 @@ pub enum SyncError {
     },
 }
 
+impl SyncError {
+    pub fn is_fatal(&self) -> bool {
+        matches!(self,
+        Self::Failed { status, .. } if status.code() == Some(255))
+    }
+}
+
 pub type Result<T> = std::result::Result<T, SyncError>;
 
 fn rsync_args(src: &str, dest: &str, opts: &Options) -> Vec<String> {
-    let mut args = ["-avz", "--delete", "--mkpath", "--delay-updates", "-i"]
-        .map(String::from)
-        .to_vec();
+    let mut args = [
+        "-avz",
+        "--delete",
+        "--mkpath",
+        "--delay-updates",
+        "-i",
+        "-s",
+        "--timeout=60",
+        "-e",
+        SSH_COMMAND,
+    ]
+    .map(String::from)
+    .to_vec();
 
     if opts.dry_run {
         args.push("-n".into());
@@ -88,6 +108,8 @@ pub fn remote_path(file: &Path, home: &Path) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    use std::os::unix::process::ExitStatusExt;
+
     use super::*;
 
     fn get_home() -> &'static Path {
@@ -194,6 +216,10 @@ mod tests {
                 "--mkpath",
                 "--delay-updates",
                 "-i",
+                "-s",
+                "--timeout=60",
+                "-e",
+                SSH_COMMAND,
                 "--",
                 "/home/user/.bashrc",
                 "host:.bashrc",
@@ -217,6 +243,10 @@ mod tests {
                 "--mkpath",
                 "--delay-updates",
                 "-i",
+                "-s",
+                "--timeout=60",
+                "-e",
+                SSH_COMMAND,
                 "-n",
                 "--max-delete=3",
                 "--progress",
@@ -246,5 +276,16 @@ mod tests {
 
         assert!(dest_dir.path().join("stale").exists());
         assert!(!dest_dir.path().join("new").exists());
+    }
+
+    #[test]
+    fn ssh_fatal_status_is_detected() {
+        let err = SyncError::Failed {
+            src: "src".into(),
+            dest: "dest".into(),
+            status: std::process::ExitStatus::from_raw(255 << 8),
+        };
+
+        assert!(err.is_fatal());
     }
 }

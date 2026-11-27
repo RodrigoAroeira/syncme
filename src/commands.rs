@@ -28,13 +28,24 @@ pub fn print(conf: &Config) -> serde_json::Result<()> {
 pub fn push(conf: &Config, home: &Path, opts: &sync::Options) -> Result<()> {
     let targets = push_targets(conf);
     let mut failures = 0;
-    for file in conf.paths() {
-        let (local, remote) = local_and_remote(file, home)?;
-        for machine in targets.iter() {
+    'machines: for machine in targets.iter() {
+        for file in conf.paths() {
+            let (local, remote) = match local_and_remote(file, home) {
+                Ok(paths) => paths,
+                Err(e) => {
+                    eprintln!("[{machine}] {}: {e:#}", file.display());
+                    failures += 1;
+                    continue;
+                }
+            };
             let dest = sync::remote_spec(machine, &remote);
             if let Err(e) = sync::rsync(local, &dest, opts) {
                 eprintln!("[{machine}] {}: {e:#}", file.display());
                 failures += 1;
+                if e.is_fatal() {
+                    eprintln!("[{machine}] stopping transfers to this machine");
+                    continue 'machines;
+                }
             }
         }
     }
@@ -62,13 +73,22 @@ pub fn pull(conf: &Config, machine: &str, home: &Path, opts: &sync::Options) -> 
 
     let mut failures = 0;
     for file in conf.paths() {
-        if let Err(e) = (|| -> Result<()> {
-            let (local, remote) = local_and_remote(file, home)?;
-            sync::rsync(&sync::remote_spec(machine, &remote), local, opts)?;
-            Ok(())
-        })() {
+        let (local, remote) = match local_and_remote(file, home) {
+            Ok(paths) => paths,
+            Err(e) => {
+                eprintln!("[{machine}] {}: {e:#}", file.display());
+                failures += 1;
+                continue;
+            }
+        };
+        if let Err(e) = sync::rsync(&sync::remote_spec(machine, &remote), local, opts) {
             eprintln!("[{machine}] {}: {e:#}", file.display());
             failures += 1;
+
+            if e.is_fatal() {
+                eprintln!("[{machine}] stopping transfers from this machine");
+                break;
+            }
         }
     }
     if failures != 0 {

@@ -5,12 +5,10 @@ TODO: Introduce supervisor daemon
 TODO: Write doc comments
 TODO: Add ignore patterns in cli and config
 TODO: Introduce data protection logic
-TODO: Handle unreachable machines
 TODO: Add --detach cli flag
 TODO: Add auto sync
 TODO: Solve different Config.paths() possible problem. Can be a problem in push and pulls. Possible fixes: sync configs, `pull` fetches remote config first or have bidirectional manifest sync (union of both lists)
 TODO: Decide if syncme pull exclusively from main_machine or if it syncs across all machines the newest file
-TODO: Ping targets before trying to sync
 DONE: dry-run, max-delete and verbose flags
 DONE: Rename Sync to Track
 DONE: Untrack command
@@ -18,3 +16,5 @@ DONE: Write commands for machine management
 DONE: Pull command
 DONE: Introduce custom errors
 DONE: fix init config is_err => could be missing or malformed
+DONE: Handle unreachable machines
+DONE: Bound SSH connections instead of pinging targets
