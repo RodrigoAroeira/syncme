@@ -8,15 +8,19 @@ use crate::util;
 const SSH_COMMAND: &str = "ssh -o BatchMode=yes -o ConnectTimeout=10 \
     -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=3";
 
+/// Options controlling how rsync transfers are performed.
 #[derive(Args, Default, Clone, Copy)]
 #[command(next_help_heading = "Sync options")]
 pub struct Options {
+    /// Simulate transfers without changing files.
     #[arg(short = 'n', long, global = true)]
     pub dry_run: bool,
 
+    /// Refuse to delete more than N files from a destination.
     #[arg(long, global = true, value_name = "N")]
     pub max_delete: Option<u32>,
 
+    /// Show per-file transfer progress.
     #[arg(short, long, global = true)]
     pub verbose: bool,
 }
