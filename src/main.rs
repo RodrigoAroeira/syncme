@@ -7,7 +7,7 @@ mod config;
 mod sync;
 mod util;
 
-use config::Config;
+use config::{Config, Role};
 
 fn main() -> Result<()> {
     use cli::Command as Cmd;
@@ -19,10 +19,11 @@ fn main() -> Result<()> {
     // Handling this case earlier allows for a single creation point for conf
     // instead of creating inside of every block in the match
     if let Cmd::Config {
-        cmd: CCmd::Init { main_machine },
+        cmd: CCmd::Init { hub, as_hub },
     } = &cmd
     {
-        return commands::init(main_machine);
+        let role = if *as_hub { Role::Hub } else { Role::Peer };
+        return commands::init(role, hub.clone());
     }
 
     let mut conf = Config::load()?;
@@ -33,10 +34,10 @@ fn main() -> Result<()> {
             CCmd::Print => commands::print(&conf)?,
         },
         Cmd::Prune => commands::prune(&mut conf, opts.verbose)?,
-        Cmd::Pull { machine } => commands::pull(&conf, &machine, &home, &opts)?,
+        Cmd::Pull { peer } => commands::pull(&conf, peer.as_deref(), &home, &opts)?,
         Cmd::Track { paths } => commands::track(&mut conf, &paths, &home)?,
         Cmd::Untrack { paths } => commands::untrack(&mut conf, &paths)?,
-        Cmd::Machine { cmd } => commands::machine(&mut conf, cmd)?,
+        Cmd::Peer { cmd } => commands::peer(&mut conf, cmd)?,
     }
     Ok(())
 }

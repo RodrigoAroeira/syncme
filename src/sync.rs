@@ -92,8 +92,8 @@ pub fn rsync(src: &str, dest: &str, opts: &Options) -> Result<()> {
     Ok(())
 }
 
-pub fn remote_spec(machine: &str, path: &str) -> String {
-    format!("{machine}:{path}")
+pub fn remote_spec(host: &str, path: &str) -> String {
+    format!("{host}:{path}")
 }
 
 pub fn remote_path(file: &Path, home: &Path) -> Option<PathBuf> {
@@ -205,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn remote_spec_joins_machine_and_path() {
+    fn remote_spec_joins_host_and_path() {
         assert_eq!(remote_spec("nas", ".bashrc"), "nas:.bashrc");
         assert_eq!(remote_spec("nas", "/etc/hostname"), "nas:/etc/hostname");
     }

@@ -20,36 +20,45 @@ pub enum ConfigError {
     #[error("path '{}' is not being tracked", .0.display())]
     PathNotTracked(PathBuf),
 
-    #[error("machine '{0}' is not in the list")]
-    MachineNotListed(String),
+    #[error("peer '{0}' is not in the list")]
+    PeerNotListed(String),
 }
 
 pub type Result<T> = std::result::Result<T, ConfigError>;
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "lowercase")]
+#[value(rename_all = "lowercase")]
+pub enum Role {
+    #[default]
+    Peer,
+    Hub,
+}
+
+impl Role {
+    pub fn is_hub(self) -> bool {
+        matches!(self, Self::Hub)
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
-    // TODO: Find a way to not rely on explicit local machine identifier this
-    this_machine: String,
-    main_machine: String,
-    #[serde(default)]
-    connected_machines: Vec<String>,
-    #[serde(default)]
+    role: Role,
+    hub: Option<String>,
+    peers: Vec<String>,
     paths: Vec<PathBuf>,
 }
 
 impl Config {
-    pub fn new(main_machine: String) -> Self {
-        let this_machine = std::fs::read_to_string("/etc/hostname")
-            .as_deref()
-            .map(str::trim)
-            .map(String::from)
-            .unwrap_or_default();
+    pub fn new(role: Role, hub: Option<String>) -> Self {
         Self {
-            main_machine,
-            this_machine,
+            role,
+            hub,
             ..Default::default()
         }
     }
+
     pub fn load() -> Result<Self> {
         Self::load_from(get_path()?)
     }
@@ -61,20 +70,20 @@ impl Config {
         Ok(config)
     }
 
-    pub fn this(&self) -> &str {
-        &self.this_machine
+    pub fn role(&self) -> Role {
+        self.role
     }
 
-    pub fn main(&self) -> &str {
-        &self.main_machine
+    pub fn hub(&self) -> Option<&str> {
+        self.hub.as_deref()
     }
 
     pub fn paths(&self) -> &[PathBuf] {
         &self.paths
     }
 
-    pub fn machines(&self) -> &[String] {
-        &self.connected_machines
+    pub fn peers(&self) -> &[String] {
+        &self.peers
     }
 
     pub fn save(&self) -> Result<()> {
@@ -108,19 +117,19 @@ impl Config {
         )
     }
 
-    pub fn add_machine(&mut self, name: String) {
+    pub fn add_peer(&mut self, name: String) {
         let name = name.trim().to_string();
-        if !self.connected_machines.contains(&name) {
-            self.connected_machines.push(name);
+        if !self.peers.contains(&name) {
+            self.peers.push(name);
         }
     }
 
-    pub fn rm_machine(&mut self, name: &str) -> Result<()> {
+    pub fn rm_peer(&mut self, name: &str) -> Result<()> {
         let name = name.trim();
         remove_first(
-            &mut self.connected_machines,
+            &mut self.peers,
             |m| m.as_str() == name,
-            || ConfigError::MachineNotListed(name.to_string()),
+            || ConfigError::PeerNotListed(name.to_string()),
         )
     }
 
@@ -176,12 +185,12 @@ fn get_path() -> Result<PathBuf> {
 mod tests {
     use super::*;
 
-    const MAIN: &str = "primary-node";
+    const HUB: &str = "hub-host";
     const BASHRC: &str = "/home/user/.bashrc";
-    const MACHINE_NAME: &str = "machine";
+    const PEER_NAME: &str = "peer-host";
 
     fn test_config() -> Config {
-        Config::new(MAIN.to_string())
+        Config::new(Role::Peer, Some(HUB.to_string()))
     }
 
     fn temp_config_file() -> (tempfile::TempDir, PathBuf) {
@@ -223,7 +232,8 @@ mod tests {
         config.save_to(&config_file)?;
 
         let loaded = Config::load_from(&config_file)?;
-        assert_eq!(loaded.main(), MAIN);
+        assert_eq!(loaded.role(), Role::Peer);
+        assert_eq!(loaded.hub(), Some(HUB));
         assert_eq!(loaded.paths(), &[PathBuf::from(BASHRC)]);
 
         Ok(())
@@ -250,21 +260,21 @@ mod tests {
     }
 
     #[test]
-    fn add_machine() {
+    fn add_peer() {
         let mut config = test_config();
-        let machine = MACHINE_NAME.to_string();
-        config.add_machine(machine.clone());
+        let peer = PEER_NAME.to_string();
+        config.add_peer(peer.clone());
 
-        assert!(config.machines().contains(&machine));
-        config.add_machine(machine);
-        assert_eq!(config.machines().len(), 1);
+        assert!(config.peers().contains(&peer));
+        config.add_peer(peer);
+        assert_eq!(config.peers().len(), 1);
     }
 
     #[test]
-    fn rm_machine() {
+    fn rm_peer() {
         let mut config = test_config();
-        config.add_machine(MACHINE_NAME.to_string());
-        assert!(config.rm_machine(MACHINE_NAME).is_ok());
+        config.add_peer(PEER_NAME.to_string());
+        assert!(config.rm_peer(PEER_NAME).is_ok());
     }
 
     #[test]
@@ -284,7 +294,7 @@ mod tests {
         std::fs::create_dir(&subdir)?;
 
         let json = format!(
-            r#"{{"this_machine":"m","main_machine":"m","connected_machines":[],"paths":["{}"]}}"#,
+            r#"{{"role":"peer","hub":"hub-host","peers":[],"paths":["{}"]}}"#,
             subdir.display()
         );
         std::fs::write(&config_file, json)?;
@@ -352,11 +362,44 @@ mod tests {
     #[test]
     fn load_ignores_unknown_fields() -> Result<()> {
         let (_dir, config_file) = temp_config_file();
-        let json = r#"{"this_machine":"m","main_machine":"m","connected_machines":[],"paths":[],"future":"value"}"#;
+        let json = r#"{"role":"peer","hub":"hub-host","peers":[],"paths":[],"future":"value"}"#;
         std::fs::write(&config_file, json)?;
 
         let loaded = Config::load_from(&config_file)?;
-        assert_eq!(loaded.main(), "m");
+        assert_eq!(loaded.hub(), Some("hub-host"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn role_defaults_to_peer() -> Result<()> {
+        let (_dir, config_file) = temp_config_file();
+        std::fs::write(&config_file, r#"{"paths":[]}"#)?;
+
+        let loaded = Config::load_from(&config_file)?;
+        assert_eq!(loaded.role(), Role::Peer);
+        assert_eq!(loaded.hub(), None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn save_writes_current_schema_only() -> Result<()> {
+        let (_dir, config_file) = temp_config_file();
+
+        test_config().save_to(&config_file)?;
+
+        let raw = std::fs::read_to_string(&config_file)?;
+        let value: serde_json::Value = serde_json::from_str(&raw)?;
+        let mut keys: Vec<_> = value
+            .as_object()
+            .expect("config is an object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+
+        assert_eq!(keys, ["hub", "paths", "peers", "role"]);
 
         Ok(())
     }

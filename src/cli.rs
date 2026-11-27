@@ -33,10 +33,10 @@ pub enum Command {
     /// Remove tracked paths that no longer exist locally from the config.
     Prune,
 
-    /// Pull tracked paths from a remote machine.
+    /// Pull tracked paths from the hub, or from a peer when no hub is set.
     Pull {
-        /// Machine to pull from.
-        machine: String,
+        /// Peer to pull from when no hub is configured.
+        peer: Option<String>,
     },
 
     /// Start tracking one or more paths under the home directory.
@@ -53,25 +53,25 @@ pub enum Command {
         paths: Vec<PathBuf>,
     },
 
-    /// Manage configured machines.
-    Machine {
-        /// Machine action.
+    /// Manage configured peers.
+    Peer {
+        /// Peer action.
         #[command(subcommand)]
-        cmd: MachineCmd,
+        cmd: PeerCmd,
     },
 }
 
-/// Machine management commands.
+/// Peer management commands.
 #[derive(Subcommand)]
-pub enum MachineCmd {
-    /// Add one or more machine names to the config.
+pub enum PeerCmd {
+    /// Add one or more peer names to the config.
     Add {
         /// Names to add.
         #[arg(required = true, value_name = "NAME")]
         names: Vec<String>,
     },
 
-    /// Remove one or more machine names from the config.
+    /// Remove one or more peer names from the config.
     #[command(alias = "rm")]
     Remove {
         /// Names to remove.
@@ -79,7 +79,7 @@ pub enum MachineCmd {
         names: Vec<String>,
     },
 
-    /// List configured machines.
+    /// List configured peers.
     #[command(alias = "ls")]
     List,
 }
@@ -87,10 +87,14 @@ pub enum MachineCmd {
 /// Configuration commands.
 #[derive(Subcommand)]
 pub enum ConfigCmd {
-    /// Create a new config for the given main machine.
+    /// Create a peer config, a peer-with-hub config, or a hub config.
     Init {
-        /// Name of the main machine.
-        main_machine: String,
+        /// Hub SSH name or address; omit for peer-to-peer mode.
+        hub: Option<String>,
+
+        /// Create a hub config instead of a peer config.
+        #[arg(long = "hub", conflicts_with = "hub")]
+        as_hub: bool,
     },
 
     /// Print the current config as JSON.
