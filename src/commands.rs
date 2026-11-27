@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::io;
 use std::path::Path;
 
@@ -7,6 +8,37 @@ use path_absolutize::Absolutize;
 use crate::cli::MachineCmd as MCmd;
 use crate::config::{Config, ConfigError as CE};
 use crate::sync;
+
+fn report_failure(machine: &str, file: &Path, err: impl Display) {
+    eprintln!("[{machine}] {}: {err:#}", file.display())
+}
+
+fn fail_on_errors(failures: usize) -> Result<()> {
+    ensure!(failures == 0, "{failures} transfer(s) failed");
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum Direction {
+    Push,
+    Pull,
+}
+
+impl Direction {
+    fn endpoints<'a>(self, local: &'a str, remote: &'a str) -> (&'a str, &'a str) {
+        match self {
+            Self::Push => (local, remote),
+            Self::Pull => (remote, local),
+        }
+    }
+
+    fn stopped_message(self) -> &'static str {
+        match self {
+            Self::Push => "to this machine",
+            Self::Pull => "from this machine",
+        }
+    }
+}
 
 pub fn init(main_machine: &str) -> Result<()> {
     ensure!(!main_machine.is_empty(), "main_machine must not be empty");
@@ -27,32 +59,7 @@ pub fn print(conf: &Config) -> serde_json::Result<()> {
 
 pub fn push(conf: &Config, home: &Path, opts: &sync::Options) -> Result<()> {
     let targets = push_targets(conf);
-    let mut failures = 0;
-    'machines: for machine in targets.iter() {
-        for file in conf.paths() {
-            let (local, remote) = match local_and_remote(file, home) {
-                Ok(paths) => paths,
-                Err(e) => {
-                    eprintln!("[{machine}] {}: {e:#}", file.display());
-                    failures += 1;
-                    continue;
-                }
-            };
-            let dest = sync::remote_spec(machine, &remote);
-            if let Err(e) = sync::rsync(local, &dest, opts) {
-                eprintln!("[{machine}] {}: {e:#}", file.display());
-                failures += 1;
-                if e.is_fatal() {
-                    eprintln!("[{machine}] stopping transfers to this machine");
-                    continue 'machines;
-                }
-            }
-        }
-    }
-    if failures != 0 {
-        bail!("{failures} transfer(s) failed")
-    }
-    Ok(())
+    sync_paths(conf, home, opts, &targets, Direction::Push)
 }
 
 pub fn pull(conf: &Config, machine: &str, home: &Path, opts: &sync::Options) -> Result<()> {
@@ -71,30 +78,7 @@ pub fn pull(conf: &Config, machine: &str, home: &Path, opts: &sync::Options) -> 
         "target machine not found in configured machines",
     );
 
-    let mut failures = 0;
-    for file in conf.paths() {
-        let (local, remote) = match local_and_remote(file, home) {
-            Ok(paths) => paths,
-            Err(e) => {
-                eprintln!("[{machine}] {}: {e:#}", file.display());
-                failures += 1;
-                continue;
-            }
-        };
-        if let Err(e) = sync::rsync(&sync::remote_spec(machine, &remote), local, opts) {
-            eprintln!("[{machine}] {}: {e:#}", file.display());
-            failures += 1;
-
-            if e.is_fatal() {
-                eprintln!("[{machine}] stopping transfers from this machine");
-                break;
-            }
-        }
-    }
-    if failures != 0 {
-        bail!("{failures} transfer(s) failed")
-    }
-    Ok(())
+    sync_paths(conf, home, opts, &[machine], Direction::Pull)
 }
 
 pub fn prune(conf: &mut Config, verbose: bool) -> Result<()> {
@@ -173,16 +157,61 @@ fn local_and_remote<'a>(file: &'a Path, home: &Path) -> Result<(&'a str, String)
     Ok((local, remote))
 }
 
-fn push_targets(conf: &Config) -> Vec<String> {
+fn push_targets(conf: &Config) -> Vec<&str> {
     if conf.this() != conf.main() {
-        vec![conf.main().to_string()]
+        vec![conf.main()]
     } else {
         conf.machines()
             .iter()
-            .filter(|m| m.as_str() != conf.this())
-            .cloned()
+            .map(String::as_str)
+            .filter(|m| *m != conf.this())
             .collect()
     }
+}
+
+fn sync_paths(
+    conf: &Config,
+    home: &Path,
+    opts: &sync::Options,
+    targets: &[&str],
+    direction: Direction,
+) -> Result<()> {
+    let mut failures = 0;
+
+    for &machine in targets {
+        for file in conf.paths() {
+            let (local, remote) = match local_and_remote(file, home) {
+                Ok(paths) => paths,
+                Err(e) => {
+                    report_failure(machine, file, e);
+                    failures += 1;
+                    continue;
+                }
+            };
+
+            let remote_spec = sync::remote_spec(machine, &remote);
+            let (src, dest) = direction.endpoints(local, &remote_spec);
+
+            match sync::rsync(src, dest, opts) {
+                Ok(()) => {}
+                Err(e) => {
+                    let fatal = e.is_fatal();
+                    report_failure(machine, file, e);
+                    failures += 1;
+
+                    if fatal {
+                        eprintln!(
+                            "[{machine}] stopping transfers {} this machine",
+                            direction.stopped_message()
+                        );
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    fail_on_errors(failures)
 }
 
 #[cfg(test)]
