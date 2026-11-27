@@ -7,6 +7,7 @@ TODO: Introduce data protection logic
 TODO: Add --detach cli flag
 TODO: Add auto sync
 TODO: Solve different Config.paths() possible problem. Can be a problem in push and pulls. Possible fixes: sync configs, `pull` fetches remote config first or have bidirectional manifest sync (union of both lists)
+TODO: Add hub-failure fallback with source tracking so the hub catches up before fan-out
 DONE: Refactor this_machine entry into role/hub/peers
 DONE: Decide pull source: hub-only with a hub, explicit peer in P2P
 DONE: dry-run, max-delete and verbose flags

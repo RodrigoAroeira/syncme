@@ -33,6 +33,9 @@ The hub must have the union of all tracked paths in its `paths` list; otherwise
 a path tracked only on one peer is never fanned back out. Use cron or a
 supervisor to run `syncme push` periodically on the hub.
 
+With a hub configured, `push` requires the hub to be reachable; `peers` are not
+a fallback. If the hub is offline, retry `syncme push` once it returns.
+
 ## Config
 
 Config is stored in `$XDG_CONFIG_HOME/syncme-conf.json` or
