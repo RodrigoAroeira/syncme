@@ -1,6 +1,6 @@
 use std::fmt::Display;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail, ensure};
 use path_absolutize::Absolutize;
@@ -13,8 +13,17 @@ fn report_failure(machine: &str, file: &Path, err: impl Display) {
     eprintln!("[{machine}] {}: {err:#}", file.display())
 }
 
+fn report_path_failure(action: &str, path: &Path, err: impl Display) {
+    eprintln!("[{action}] {}: {err:#}", path.display())
+}
+
 fn fail_on_errors(failures: usize) -> Result<()> {
     ensure!(failures == 0, "{failures} transfer(s) failed");
+    Ok(())
+}
+
+fn fail_on_path_errors(failures: usize, action: &str) -> Result<()> {
+    ensure!(failures == 0, "{failures} path(s) failed to {action}");
     Ok(())
 }
 
@@ -93,24 +102,55 @@ pub fn prune(conf: &mut Config, verbose: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn track(conf: &mut Config, path: &Path, home: &Path) -> Result<()> {
-    let path = path.absolutize()?;
-    ensure!(
-        path.as_ref() != home,
-        "refusing to track home directory itself"
-    );
-    ensure!(
-        path.starts_with(home),
-        "refusing to track {}: outside the home directory",
-        path.display()
-    );
-    conf.add_path(path);
-    Ok(conf.save()?)
+pub fn track(conf: &mut Config, paths: &[PathBuf], home: &Path) -> Result<()> {
+    ensure!(!paths.is_empty(), "no path(s) provided");
+
+    let mut checked = Vec::new();
+    let mut failures = 0;
+
+    for path in paths {
+        match checked_track_path(path, home) {
+            Ok(path) => checked.push(path),
+            Err(e) => {
+                report_path_failure("track", path, e);
+                failures += 1;
+            }
+        }
+    }
+
+    fail_on_path_errors(failures, "track")?;
+
+    for path in checked {
+        conf.add_path(path);
+    }
+    conf.save()?;
+    Ok(())
 }
 
-pub fn untrack(conf: &mut Config, path: &Path) -> Result<()> {
-    conf.untrack_path(path.absolutize()?)?;
-    Ok(conf.save()?)
+pub fn untrack(conf: &mut Config, paths: &[PathBuf]) -> Result<()> {
+    ensure!(!paths.is_empty(), "no path(s) provided");
+
+    let mut checked = Vec::new();
+    let mut failures = 0;
+
+    for path in paths {
+        match checked_untrack_path(conf, path) {
+            Ok(path) if !checked.contains(&path) => checked.push(path),
+            Ok(_) => {}
+            Err(e) => {
+                report_path_failure("untrack", path, e);
+                failures += 1;
+            }
+        }
+    }
+
+    fail_on_path_errors(failures, "untrack")?;
+
+    for path in checked {
+        conf.untrack_path(path)?;
+    }
+    conf.save()?;
+    Ok(())
 }
 
 pub fn machine(conf: &mut Config, cmd: MCmd) -> Result<()> {
@@ -134,6 +174,34 @@ pub fn machine(conf: &mut Config, cmd: MCmd) -> Result<()> {
         }
     }
     Ok(conf.save()?)
+}
+
+fn checked_track_path(path: &Path, home: &Path) -> Result<PathBuf> {
+    let absolute = path.absolutize()?.into_owned();
+    validate_tracked_path(&absolute, home)?;
+    Ok(absolute)
+}
+
+fn validate_tracked_path(path: &Path, home: &Path) -> Result<()> {
+    ensure!(path != home, "refusing to track home directory itself");
+    ensure!(
+        path.starts_with(home),
+        "refusing to track {}: outside the home directory",
+        path.display()
+    );
+    Ok(())
+}
+
+fn checked_untrack_path(conf: &Config, path: &Path) -> Result<PathBuf> {
+    let absolute = path.absolutize()?.into_owned();
+    ensure!(
+        conf.paths()
+            .iter()
+            .any(|tracked| tracked.as_path() == absolute.as_path()),
+        "path '{}' is not being tracked",
+        absolute.display()
+    );
+    Ok(absolute)
 }
 
 fn local_and_remote<'a>(file: &'a Path, home: &Path) -> Result<(&'a str, String)> {
@@ -220,6 +288,43 @@ mod tests {
 
     fn home() -> &'static Path {
         "/home/user".as_ref()
+    }
+
+    #[test]
+    fn validate_tracked_path_accepts_inside_home() {
+        assert!(validate_tracked_path(Path::new("/home/user/.config/"), home()).is_ok());
+    }
+
+    #[test]
+    fn validate_tracked_path_rejects_home_itself() {
+        let err = validate_tracked_path(home(), home()).unwrap_err();
+
+        assert!(err.to_string().contains("home directory itself"));
+    }
+
+    #[test]
+    fn validate_tracked_path_rejects_outside_home() {
+        let err = validate_tracked_path(Path::new("/etc/hosts"), home()).unwrap_err();
+
+        assert!(err.to_string().contains("outside the home directory"));
+    }
+
+    #[test]
+    fn checked_untrack_path_accepts_tracked_path() {
+        let mut conf = get_config("main", "laptop", &[]);
+        conf.add_path("/home/user/.bashrc");
+
+        let checked = checked_untrack_path(&conf, Path::new("/home/user/.bashrc")).unwrap();
+
+        assert_eq!(checked, PathBuf::from("/home/user/.bashrc"));
+    }
+
+    #[test]
+    fn checked_untrack_path_rejects_untracked_path() {
+        let conf = get_config("main", "laptop", &[]);
+        let err = checked_untrack_path(&conf, Path::new("/home/user/.bashrc")).unwrap_err();
+
+        assert!(err.to_string().contains("not being tracked"));
     }
 
     #[test]

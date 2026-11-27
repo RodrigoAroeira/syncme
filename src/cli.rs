@@ -26,10 +26,12 @@ pub enum Command {
         machine: String,
     },
     Track {
-        path: PathBuf,
+        #[arg(required = true, value_name = "PATH")]
+        paths: Vec<PathBuf>,
     },
     Untrack {
-        path: PathBuf,
+        #[arg(required = true, value_name = "PATH")]
+        paths: Vec<PathBuf>,
     },
     Machine {
         #[command(subcommand)]
